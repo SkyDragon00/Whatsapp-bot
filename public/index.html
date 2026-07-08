@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Citas Agendadas</title>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; }
+    #calendar { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>📅 Citas Agendadas</h1>
+  <div id="calendar"></div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const res = await fetch('/api/appointments');
+      const appointments = await res.json();
+
+      const events = appointments.map(a => ({
+        title: `${a.patient_name} - ${a.service}`,
+        start: a.date_iso,
+      }));
+
+      const calendarEl = document.getElementById('calendar');
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'es',
+        events: events,
+        eventTimeFormat: {
+          hour: '2-digit',
+          minute: '2-digit',
+          meridiem: 'short',
+        },
+      });
+      calendar.render();
+    });
+  </script>
+</body>
+</html>
