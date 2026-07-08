@@ -1,0 +1,29 @@
+# Dependencias
+node_modules/
+
+# Sesión de WhatsApp (IMPORTANTE: contiene tu sesión autenticada, nunca lo subas)
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Variables de entorno
+.env
+.env.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.swp
+
+# Build/dist si algún día compilas algo
+dist/
+build/
