@@ -3,6 +3,12 @@ const qrcode = require('qrcode-terminal');
 const chrono = require('chrono-node');
 const db = require('./db');
 const { startServer } = require('./server');
+const {
+  DAY_NAMES,
+  getSettings,
+  isWithinBusinessHours,
+  formatBusinessHoursForDay,
+} = require('./settings');
 
 const client = new Client({
   authStrategy: new LocalAuth(),
@@ -75,6 +81,17 @@ client.on('message', async (msg) => {
 
     state.data.date_text = text;
     state.data.date_iso = parsedDate.toISOString();
+
+    const settings = getSettings();
+    const hoursValidation = isWithinBusinessHours(parsedDate, settings);
+    if (!hoursValidation.ok) {
+      const dayName = DAY_NAMES[parsedDate.getDay()];
+      const hoursText = formatBusinessHoursForDay(hoursValidation.dayHours);
+      await msg.reply(
+        `No puedo agendar esa cita porque el horario de ${dayName} es ${hoursText} y cada cita dura ${settings.appointmentDurationMinutes} minutos.\n\nPor favor dime otra fecha u hora dentro del horario de atencion.`
+      );
+      return;
+    }
 
     // Validación final: nos aseguramos que TODOS los datos estén completos
     const { name, service, date_iso } = state.data;
