@@ -1,6 +1,6 @@
 import { findAvailableSlots } from '../domain/availability.js';
 import { MAX_AVAILABILITY_RANGE_DAYS } from '../config/constants.js';
-import { addDaysToLocalDate, parseLocalDate, zonedDateTimeToUtc } from '../domain/datetime.js';
+import { addDaysToLocalDate, parseLocalDate, parseTimeToMinutes, zonedDateTimeToUtc } from '../domain/datetime.js';
 import { AiProtocolError, DomainError, ValidationError } from '../domain/errors.js';
 import { requirePositiveInteger, requireString } from '../domain/validation.js';
 import {
@@ -58,7 +58,7 @@ function serializeAppointment(appointment) {
 
 function validateFindSlotsArguments(rawArgs) {
 	const args = requireArguments(rawArgs);
-	assertAllowedKeys(args, ['service_id', 'service_name', 'date', 'date_from', 'date_to', 'period']);
+	assertAllowedKeys(args, ['service_id', 'service_name', 'date', 'date_from', 'date_to', 'period', 'time']);
 	if (args.service_id === undefined && args.service_name === undefined) {
 		throw new ValidationError('Debe indicarse el servicio para buscar disponibilidad.');
 	}
@@ -77,6 +77,13 @@ function validateFindSlotsArguments(rawArgs) {
 	if (args.period !== undefined && !['mañana', 'tarde', 'noche'].includes(args.period)) {
 		throw new ValidationError('El periodo no es válido.');
 	}
+	if (args.period !== undefined && args.time !== undefined) {
+		throw new ValidationError('Debe indicarse una hora exacta o un periodo, no ambos.');
+	}
+	const time = args.time === undefined ? undefined : requireString(args.time, 'La hora exacta', { max: 5 });
+	if (time !== undefined && parseTimeToMinutes(time) === null) {
+		throw new ValidationError('La hora exacta debe usar el formato HH:MM.');
+	}
 
 	return {
 		serviceId: args.service_id === undefined ? undefined : requirePositiveInteger(args.service_id, 'El servicio'),
@@ -87,6 +94,7 @@ function validateFindSlotsArguments(rawArgs) {
 		dateFrom: requireString(args.date ?? args.date_from, 'La fecha inicial', { max: 10 }),
 		dateTo: requireString(args.date ?? args.date_to ?? args.date_from, 'La fecha final', { max: 10 }),
 		period: args.period,
+		time,
 	};
 }
 
@@ -120,6 +128,7 @@ async function findSlots(args, context) {
 		dateFrom: input.dateFrom,
 		dateTo: input.dateTo,
 		period: input.period,
+		time: input.time,
 		serviceDurationMinutes: service.duration_minutes,
 		settings,
 		appointments,

@@ -8,6 +8,7 @@ import { withAdminProtection } from '../middleware/admin.js';
 import { logError } from '../utils/logging.js';
 import { jsonResponse } from '../utils/responses.js';
 import { handleAppointmentsApi } from './appointments.js';
+import { handleExpensesApi } from './expenses.js';
 import { handleServicesApi } from './services.js';
 import { handleSettingsApi } from './settings.js';
 
@@ -30,6 +31,9 @@ async function dispatchApi(request, env, url) {
 		response = await handleAppointmentsApi(request, env, url);
 	}
 	else if (url.pathname === '/api/settings') response = await handleSettingsApi(request, env);
+	else if (url.pathname === '/api/expenses' || url.pathname.startsWith('/api/expenses/')) {
+		response = await handleExpensesApi(request, env, url);
+	}
 	else if (url.pathname === '/api/services' || url.pathname.startsWith('/api/services/')) {
 		response = await handleServicesApi(request, env, url);
 	}

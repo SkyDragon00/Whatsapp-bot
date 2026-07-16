@@ -1,7 +1,7 @@
 import { jsonResponse } from '../utils/responses.js';
 
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
-const ADMIN_METHODS = 'GET, POST, PUT, OPTIONS';
+const ADMIN_METHODS = 'GET, POST, PUT, DELETE, OPTIONS';
 const ADMIN_HEADERS = 'Content-Type, Authorization';
 
 function isLocalHostname(hostname) {

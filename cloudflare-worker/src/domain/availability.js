@@ -91,6 +91,7 @@ export function findAvailableSlots({
 	dateFrom,
 	dateTo = dateFrom,
 	period,
+	time,
 	serviceDurationMinutes,
 	settings,
 	appointments = [],
@@ -109,6 +110,13 @@ export function findAvailableSlots({
 
 	const normalizedSettings = normalizeBusinessSettings(settings);
 	const periodRange = normalizePeriod(period);
+	const requestedMinute = time === undefined || time === null || time === '' ? null : parseTimeToMinutes(time);
+	if (requestedMinute === null && time !== undefined && time !== null && time !== '') {
+		throw new ValidationError('La hora debe usar el formato HH:MM.');
+	}
+	if (periodRange && requestedMinute !== null) {
+		throw new ValidationError('Debe indicarse una hora exacta o un periodo, no ambos.');
+	}
 	const days = [];
 	let cursor = dateFrom;
 	for (let index = 0; index < MAX_AVAILABILITY_RANGE_DAYS; index += 1) {
@@ -137,6 +145,7 @@ export function findAvailableSlots({
 		const opening = parseTimeToMinutes(dayHours.start);
 		const closing = parseTimeToMinutes(dayHours.end);
 		for (let minute = opening; minute + duration <= closing; minute += normalizedSettings.slotIntervalMinutes) {
+			if (requestedMinute !== null && minute !== requestedMinute) continue;
 			if (periodRange && (minute < periodRange[0] || minute >= periodRange[1])) continue;
 			const localTime = minutesToTime(minute);
 			const startAt = zonedDateTimeToUtc(localDate, localTime, normalizedSettings.businessTimezone);

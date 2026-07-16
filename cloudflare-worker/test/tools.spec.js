@@ -64,6 +64,21 @@ describe.sequential('herramientas controladas del backend', () => {
 		});
 	});
 
+	it('consulta directamente una hora exacta aunque no aparezca entre los primeros espacios', async () => {
+		const result = await executeToolSafely(
+			'find_available_slots',
+			{ service_id: service.id, date: '2026-07-20', time: '15:00' },
+			context(),
+		);
+
+		expect(result).toMatchObject({
+			ok: true,
+			data: {
+				slots: [{ local_date: '2026-07-20', local_time: '15:00', start_at: '2026-07-20T20:00:00.000Z' }],
+			},
+		});
+	});
+
 	it('usa inmediatamente el horario y las preferencias guardadas por la API', async () => {
 		const response = await SELF.fetch('http://localhost/api/settings', {
 			method: 'PUT',

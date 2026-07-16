@@ -36,6 +36,21 @@ CREATE TABLE IF NOT EXISTS settings (
 	value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS expenses (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	expense_date TEXT NOT NULL CHECK (expense_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+	description TEXT NOT NULL,
+	category TEXT NOT NULL,
+	supplier TEXT,
+	amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+	payment_method TEXT NOT NULL,
+	document_type TEXT,
+	document_number TEXT,
+	notes TEXT,
+	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT OR IGNORE INTO settings (key, value)
 VALUES
 	('schedule', '{"appointmentDurationMinutes":60,"businessTimezone":"America/Guayaquil","slotIntervalMinutes":15,"minimumBookingNoticeMinutes":0,"maximumAdvanceBookingDays":31,"closedDates":[],"businessHours":[{"day":0,"enabled":false,"start":"09:00","end":"17:00"},{"day":1,"enabled":true,"start":"09:00","end":"17:00"},{"day":2,"enabled":true,"start":"09:00","end":"17:00"},{"day":3,"enabled":true,"start":"09:00","end":"17:00"},{"day":4,"enabled":true,"start":"09:00","end":"17:00"},{"day":5,"enabled":true,"start":"09:00","end":"17:00"},{"day":6,"enabled":false,"start":"09:00","end":"17:00"}]}'),
@@ -47,6 +62,8 @@ CREATE INDEX IF NOT EXISTS idx_appointments_telegram_user ON appointments(telegr
 CREATE INDEX IF NOT EXISTS idx_services_enabled_name ON services(enabled, name);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_source_update ON appointments(source_update_id)
 WHERE source_update_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category COLLATE NOCASE);
 
 CREATE TRIGGER IF NOT EXISTS appointments_validate_interval_insert
 BEFORE INSERT ON appointments

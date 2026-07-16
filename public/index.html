@@ -7,7 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@fullcalendar/luxon3@6.1.11/index.global.min.js"></script>
 <style>
   :root {
     --blue: #1a73e8;
@@ -72,13 +74,63 @@
     font-size: 12px;
   }
 
+  .app-shell {
+    display: flex;
+    min-height: calc(100vh - 73px);
+  }
+
+  .sidebar {
+    width: 230px;
+    flex: 0 0 230px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 22px 14px;
+  }
+
+  .brand-name {
+    padding: 0 12px 18px;
+    color: var(--text-secondary);
+    font-family: 'Google Sans', 'Roboto', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .side-nav {
+    display: grid;
+    gap: 6px;
+  }
+
+  .nav-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 500;
+    padding: 11px 12px;
+    text-align: left;
+  }
+
+  .nav-item:hover { background: #f1f3f4; }
+  .nav-item.active { background: #e8f0fe; color: var(--blue); }
+  .nav-item svg { flex: 0 0 auto; }
+
   main {
-    max-width: 1100px;
+    width: calc(100% - 230px);
+    max-width: 1240px;
     margin: 24px auto;
     padding: 0 24px 40px;
   }
 
-  #calendar-card {
+  #calendar-card,
+  .content-card {
     background: var(--surface);
     border-radius: 12px;
     box-shadow: 0 1px 2px rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
@@ -135,6 +187,91 @@
     padding: 2px 4px;
     font-size: 12px;
   }
+
+  .view-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .view-header h2 {
+    margin: 0 0 5px;
+    font: 500 24px 'Google Sans', 'Roboto', sans-serif;
+  }
+
+  .view-header p { margin: 0; color: var(--text-secondary); font-size: 14px; }
+  .content-card { padding: 22px; }
+
+  .invoice-empty {
+    display: grid;
+    place-items: center;
+    min-height: 360px;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+
+  .invoice-empty svg { color: #9aa0a6; margin-bottom: 16px; }
+  .invoice-empty h3 { color: var(--text); margin: 0 0 8px; }
+  .invoice-empty p { margin: 0; max-width: 420px; }
+
+  .expense-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 220px));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .summary-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 15px;
+  }
+
+  .summary-label { color: var(--text-secondary); font-size: 12px; margin-bottom: 5px; }
+  .summary-value { color: var(--text); font: 500 22px 'Google Sans', 'Roboto', sans-serif; }
+
+  .expense-form {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 14px;
+    padding: 18px;
+    margin-bottom: 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fafbfd;
+  }
+
+  .expense-form h3 { grid-column: 1 / -1; margin: 0 0 2px; font-size: 17px; }
+  .form-field { grid-column: span 4; min-width: 0; }
+  .form-field.wide { grid-column: span 6; }
+  .form-field.full { grid-column: 1 / -1; }
+  .form-field input, .form-field select, .form-field textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    padding: 9px 10px;
+  }
+  .form-field textarea { min-height: 72px; resize: vertical; }
+  .form-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+  .expense-message { flex: 1; min-height: 18px; font-size: 13px; }
+  .expense-message.error { color: var(--red); }
+  .expense-message.success { color: var(--green); }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  .expense-table { width: 100%; border-collapse: collapse; min-width: 980px; }
+  .expense-table th, .expense-table td { padding: 11px 12px; border-bottom: 1px solid #eeeeee; text-align: left; vertical-align: top; }
+  .expense-table th { background: #f8f9fa; color: var(--text-secondary); font-size: 12px; font-weight: 500; }
+  .expense-table td { font-size: 13px; }
+  .expense-table tbody tr:last-child td { border-bottom: 0; }
+  .expense-amount { font-weight: 700; white-space: nowrap; }
+  .expense-secondary { color: var(--text-secondary); display: block; margin-top: 3px; font-size: 12px; }
+  .delete-expense { border: 0; background: transparent; color: var(--red); cursor: pointer; padding: 4px 6px; font: inherit; }
+  .expenses-empty { padding: 34px !important; text-align: center !important; color: var(--text-secondary); }
   .fc-event.appointment-cancelled {
     background: #9aa0a6 !important;
     opacity: 0.7;
@@ -395,6 +532,16 @@
     margin-top: 12px;
   }
 
+  @media (max-width: 800px) {
+    .app-shell { display: block; }
+    .sidebar { width: 100%; padding: 8px 10px; border-right: 0; border-bottom: 1px solid var(--border); }
+    .brand-name { display: none; }
+    .side-nav { grid-template-columns: repeat(3, 1fr); }
+    .nav-item { justify-content: center; padding: 9px 7px; }
+    main { width: 100%; }
+    .form-field, .form-field.wide { grid-column: span 6; }
+  }
+
   @media (max-width: 640px) {
     header {
       padding: 12px 16px;
@@ -403,6 +550,12 @@
       margin-top: 16px;
       padding: 0 12px 28px;
     }
+    header h1 { font-size: 18px; }
+    .header-status { display: none; }
+    .expense-summary { grid-template-columns: 1fr 1fr; }
+    .expense-form { padding: 14px; }
+    .form-field, .form-field.wide { grid-column: 1 / -1; }
+    .nav-item { gap: 6px; font-size: 13px; }
     #calendar-card {
       padding: 12px;
     }
@@ -432,7 +585,7 @@
     <path d="M16 2V6" stroke="#1a73e8" stroke-width="1.8" stroke-linecap="round"/>
     <rect x="7" y="12" width="3" height="3" rx="0.5" fill="#1a73e8"/>
   </svg>
-  <h1>Citas Agendadas</h1>
+  <h1 id="pageTitle">Calendario</h1>
   <div class="header-spacer"></div>
   <span class="header-status" id="refreshStatus" aria-live="polite"></span>
   <button class="text-button" id="refreshAppointments" type="button">Actualizar</button>
@@ -445,11 +598,127 @@
   </button>
 </header>
 
-<main>
-  <div id="calendar-card">
-    <div id="calendar"></div>
-  </div>
-</main>
+<div class="app-shell">
+  <aside class="sidebar" aria-label="Menú principal">
+    <div class="brand-name" id="brandName">Administración</div>
+    <nav class="side-nav">
+      <button class="nav-item" type="button" data-view="invoices">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8h6M9 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Facturar
+      </button>
+      <button class="nav-item" type="button" data-view="expenses">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16v12H4V7Z" stroke="currentColor" stroke-width="1.8"/><path d="M7 7V5h10v2M8 12h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Gastos
+      </button>
+      <button class="nav-item active" type="button" data-view="calendar" aria-current="page">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Calendario
+      </button>
+    </nav>
+  </aside>
+
+  <main>
+    <section class="app-view" id="invoicesView" data-view-panel="invoices" hidden>
+      <div class="content-card invoice-empty">
+        <div>
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 8h6M9 12h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <h3>Facturación</h3>
+          <p>Esta sección ya está preparada en el menú. Próximamente podrás crear y administrar facturas desde aquí.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="app-view" id="expensesView" data-view-panel="expenses" hidden>
+      <div class="view-header">
+        <div>
+          <h2>Gastos</h2>
+          <p>Registra y consulta todos los egresos del negocio.</p>
+        </div>
+      </div>
+      <div class="content-card">
+        <div class="expense-summary">
+          <div class="summary-card">
+            <div class="summary-label">Total registrado</div>
+            <div class="summary-value" id="expenseTotal">$0,00</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Cantidad de gastos</div>
+            <div class="summary-value" id="expenseCount">0</div>
+          </div>
+        </div>
+
+        <form class="expense-form" id="expenseForm">
+          <h3>Registrar un gasto</h3>
+          <div class="form-field">
+            <label class="field-label" for="expenseDate">Fecha</label>
+            <input id="expenseDate" name="expense_date" type="date" required />
+          </div>
+          <div class="form-field wide">
+            <label class="field-label" for="expenseDescription">Descripción</label>
+            <input id="expenseDescription" name="description" type="text" minlength="2" maxlength="200" placeholder="Ej. Compra de productos de limpieza" required />
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="expenseAmount">Monto (USD)</label>
+            <input id="expenseAmount" name="amount" type="number" min="0.01" max="10000000" step="0.01" placeholder="0.00" required />
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="expenseCategory">Categoría</label>
+            <select id="expenseCategory" name="category" required>
+              <option value="">Selecciona una categoría</option>
+              <option>Insumos</option><option>Servicios básicos</option><option>Arriendo</option>
+              <option>Transporte</option><option>Marketing</option><option>Mantenimiento</option>
+              <option>Nómina</option><option>Impuestos</option><option>Otros</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="expenseSupplier">Proveedor</label>
+            <input id="expenseSupplier" name="supplier" type="text" maxlength="150" placeholder="Opcional" />
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="expensePaymentMethod">Método de pago</label>
+            <select id="expensePaymentMethod" name="payment_method" required>
+              <option value="">Selecciona el método</option>
+              <option>Efectivo</option><option>Transferencia</option><option>Tarjeta de débito</option>
+              <option>Tarjeta de crédito</option><option>Cheque</option><option>Otro</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="expenseDocumentType">Tipo de comprobante</label>
+            <select id="expenseDocumentType" name="document_type">
+              <option value="">Sin comprobante</option><option>Factura</option><option>Nota de venta</option>
+              <option>Recibo</option><option>Liquidación de compra</option><option>Otro</option>
+            </select>
+          </div>
+          <div class="form-field wide">
+            <label class="field-label" for="expenseDocumentNumber">Número de comprobante</label>
+            <input id="expenseDocumentNumber" name="document_number" type="text" maxlength="100" placeholder="Ej. 001-001-000012345" />
+          </div>
+          <div class="form-field full">
+            <label class="field-label" for="expenseNotes">Notas</label>
+            <textarea id="expenseNotes" name="notes" maxlength="1000" placeholder="Información adicional del gasto"></textarea>
+          </div>
+          <div class="form-actions">
+            <div class="expense-message" id="expenseMessage" role="status" aria-live="polite"></div>
+            <button class="primary-button" type="submit">Guardar gasto</button>
+          </div>
+        </form>
+
+        <div class="table-wrap">
+          <table class="expense-table">
+            <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Proveedor</th><th>Pago</th><th>Comprobante</th><th>Monto</th><th></th></tr></thead>
+            <tbody id="expensesTableBody"><tr><td class="expenses-empty" colspan="8">Cargando gastos...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="app-view" id="calendarView" data-view-panel="calendar">
+      <div id="calendar-card">
+        <div id="calendar"></div>
+      </div>
+    </section>
+  </main>
+</div>
 
 <!-- Modal -->
 <div class="modal-overlay" id="modalOverlay">
@@ -652,13 +921,25 @@
   const rescheduleService = document.getElementById('rescheduleService');
   const confirmReschedule = document.getElementById('confirmReschedule');
   const appointmentError = document.getElementById('appointmentError');
+  const pageTitle = document.getElementById('pageTitle');
+  const navigationItems = Array.from(document.querySelectorAll('.nav-item'));
+  const viewPanels = Array.from(document.querySelectorAll('[data-view-panel]'));
+  const expenseForm = document.getElementById('expenseForm');
+  const expenseDate = document.getElementById('expenseDate');
+  const expenseMessage = document.getElementById('expenseMessage');
+  const expensesTableBody = document.getElementById('expensesTableBody');
+  const expenseTotal = document.getElementById('expenseTotal');
+  const expenseCount = document.getElementById('expenseCount');
 
   const dayLabels = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+  const viewTitles = { invoices: 'Facturar', expenses: 'Gastos', calendar: 'Calendario' };
   let currentSettings = null;
   let currentServices = [];
+  let currentExpenses = [];
   let servicesApiAvailable = true;
   let calendar = null;
   let currentAppointment = null;
+  let activeView = 'calendar';
 
   function requestAdminToken({ force = false } = {}) {
     if (adminApiToken && !force) return adminApiToken;
@@ -965,6 +1246,127 @@
     return currentServices;
   }
 
+  function formatCurrency(value) {
+    return new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(value);
+  }
+
+  function createTableCell(value, className = '') {
+    const cell = document.createElement('td');
+    if (className) cell.className = className;
+    cell.textContent = value ?? '—';
+    return cell;
+  }
+
+  function renderExpenses(expenses) {
+    currentExpenses = expenses;
+    expenseTotal.textContent = formatCurrency(expenses.reduce((sum, expense) => sum + expense.amount, 0));
+    expenseCount.textContent = String(expenses.length);
+    expensesTableBody.replaceChildren();
+    if (expenses.length === 0) {
+      const row = document.createElement('tr');
+      const cell = createTableCell('Todavía no hay gastos registrados.', 'expenses-empty');
+      cell.colSpan = 8;
+      row.append(cell);
+      expensesTableBody.append(row);
+      return;
+    }
+
+    for (const expense of expenses) {
+      const row = document.createElement('tr');
+      const descriptionCell = createTableCell(expense.description);
+      if (expense.notes) {
+        const notes = document.createElement('span');
+        notes.className = 'expense-secondary';
+        notes.textContent = expense.notes;
+        descriptionCell.append(notes);
+      }
+      const documentLabel = [expense.document_type, expense.document_number].filter(Boolean).join(' · ') || '—';
+      const actionCell = document.createElement('td');
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'delete-expense';
+      deleteButton.dataset.expenseId = expense.id;
+      deleteButton.setAttribute('aria-label', `Eliminar gasto ${expense.description}`);
+      deleteButton.textContent = 'Eliminar';
+      actionCell.append(deleteButton);
+      row.append(
+        createTableCell(new Date(`${expense.expense_date}T12:00:00`).toLocaleDateString('es-EC')),
+        descriptionCell,
+        createTableCell(expense.category),
+        createTableCell(expense.supplier),
+        createTableCell(expense.payment_method),
+        createTableCell(documentLabel),
+        createTableCell(formatCurrency(expense.amount), 'expense-amount'),
+        actionCell,
+      );
+      expensesTableBody.append(row);
+    }
+  }
+
+  async function loadExpenses() {
+    const response = await apiFetch('/api/expenses');
+    const expenses = await parseApiResponse(response, 'No se pudieron cargar los gastos.');
+    renderExpenses(expenses);
+    return expenses;
+  }
+
+  function setExpenseMessage(message = '', type = '') {
+    expenseMessage.textContent = message;
+    expenseMessage.className = `expense-message${type ? ` ${type}` : ''}`;
+  }
+
+  function businessToday() {
+    const timeZone = currentSettings?.businessTimezone || 'America/Guayaquil';
+    const parts = zonedParts(new Date(), timeZone);
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+
+  async function saveExpense() {
+    const form = new FormData(expenseForm);
+    const input = Object.fromEntries(form.entries());
+    input.amount = Number(input.amount);
+    const response = await apiFetch('/api/expenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    await parseApiResponse(response, 'No se pudo guardar el gasto.');
+    expenseForm.reset();
+    expenseDate.value = businessToday();
+    await loadExpenses();
+  }
+
+  async function removeExpense(expenseId) {
+    const expense = currentExpenses.find((item) => item.id === expenseId);
+    if (!expense || !window.confirm(`¿Eliminar el gasto "${expense.description}"?`)) return;
+    const response = await apiFetch(`/api/expenses/${expenseId}`, { method: 'DELETE' });
+    await parseApiResponse(response, 'No se pudo eliminar el gasto.');
+    await loadExpenses();
+  }
+
+  async function switchView(view) {
+    if (!viewTitles[view]) return;
+    activeView = view;
+    pageTitle.textContent = viewTitles[view];
+    for (const item of navigationItems) {
+      const isActive = item.dataset.view === view;
+      item.classList.toggle('active', isActive);
+      if (isActive) item.setAttribute('aria-current', 'page');
+      else item.removeAttribute('aria-current');
+    }
+    for (const panel of viewPanels) panel.hidden = panel.dataset.viewPanel !== view;
+    refreshAppointments.hidden = view === 'invoices';
+    if (view === 'calendar' && calendar) window.setTimeout(() => calendar.updateSize(), 0);
+    if (view === 'expenses') {
+      setExpenseMessage();
+      try {
+        await loadExpenses();
+      } catch (error) {
+        setExpenseMessage(error.message, 'error');
+      }
+    }
+  }
+
   async function saveServices() {
     if (!servicesApiAvailable) return;
     for (const service of readServicesForm()) {
@@ -1035,7 +1437,26 @@
   // Cerrar con la X
   modalClose.addEventListener('click', closeModal);
   refreshAppointments.addEventListener('click', () => {
-    refreshDashboard({ includeSettings: true }).catch((error) => { refreshStatus.textContent = error.message; });
+    const refresh = activeView === 'expenses' ? loadExpenses() : refreshDashboard({ includeSettings: true });
+    refresh.catch((error) => { refreshStatus.textContent = error.message; });
+  });
+  for (const item of navigationItems) {
+    item.addEventListener('click', () => { switchView(item.dataset.view); });
+  }
+  expenseForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    setExpenseMessage('Guardando...');
+    try {
+      await saveExpense();
+      setExpenseMessage('Gasto registrado correctamente.', 'success');
+    } catch (error) {
+      setExpenseMessage(error.message, 'error');
+    }
+  });
+  expensesTableBody.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-expense-id]');
+    if (!button) return;
+    removeExpense(Number(button.dataset.expenseId)).catch((error) => setExpenseMessage(error.message, 'error'));
   });
   adminSession.addEventListener('click', () => {
     sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
@@ -1095,8 +1516,9 @@
       if (!['localhost', '127.0.0.1', '::1'].includes(apiHostname) && !adminApiToken) requestAdminToken();
       const [settings, appointments] = await Promise.all([loadSettings(), loadAppointments(), loadServices()]);
       if (settings.businessProfile?.businessName) {
-        document.querySelector('header h1').textContent = `${settings.businessProfile.businessName} · Citas`;
+        document.getElementById('brandName').textContent = settings.businessProfile.businessName;
       }
+      expenseDate.value = businessToday();
 
     if (appointments.length === 0) {
       // Igual inicializamos el calendario vacío, solo informativo

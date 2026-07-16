@@ -180,4 +180,28 @@ describe('conflictos y disponibilidad', () => {
 		expect(morning.map((slot) => slot.local_time)).toEqual(['09:00', '10:00', '11:00']);
 		expect(afternoon.map((slot) => slot.local_time)).toEqual(['12:00', '13:00', '14:00', '15:00', '16:00', '17:00']);
 	});
+
+	it('comprueba una hora exacta aunque quede fuera de la lista general recortada', () => {
+		const tenMinuteSettings = settings({ slotIntervalMinutes: 10 });
+		const generalSlots = findAvailableSlots({
+			dateFrom: '2026-07-16',
+			period: 'mañana',
+			serviceDurationMinutes: 15,
+			settings: tenMinuteSettings,
+			now,
+		});
+		const exactSlot = findAvailableSlots({
+			dateFrom: '2026-07-16',
+			time: '11:00',
+			serviceDurationMinutes: 15,
+			settings: tenMinuteSettings,
+			now,
+		});
+
+		expect(generalSlots).toHaveLength(12);
+		expect(generalSlots.some((slot) => slot.local_time === '11:00')).toBe(false);
+		expect(exactSlot).toEqual([
+			expect.objectContaining({ local_date: '2026-07-16', local_time: '11:00' }),
+		]);
+	});
 });

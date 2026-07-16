@@ -35,6 +35,7 @@ describe.sequential('API administrativa', () => {
 	beforeEach(async () => {
 		await env.DB.batch([
 			env.DB.prepare('DELETE FROM appointments'),
+			env.DB.prepare('DELETE FROM expenses'),
 			env.DB.prepare('DELETE FROM services'),
 			env.DB.prepare('DELETE FROM settings'),
 		]);
@@ -96,6 +97,62 @@ describe.sequential('API administrativa', () => {
 		});
 		expect(response.status).toBe(400);
 		expect(await response.json()).toMatchObject({ code: 'VALIDATION_ERROR' });
+	});
+
+	it('registra, lista y elimina gastos con sus datos completos', async () => {
+		const createResponse = await SELF.fetch(`${LOCAL_API}/expenses`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				expense_date: '2026-07-15',
+				description: 'Compra de insumos',
+				category: 'Insumos',
+				supplier: 'Proveedor local',
+				amount: 42.75,
+				payment_method: 'Transferencia',
+				document_type: 'Factura',
+				document_number: '001-001-000012345',
+				notes: 'Material para la semana',
+			}),
+		});
+		expect(createResponse.status).toBe(201);
+		const created = await createResponse.json();
+		expect(created).toMatchObject({
+			expense_date: '2026-07-15',
+			description: 'Compra de insumos',
+			category: 'Insumos',
+			supplier: 'Proveedor local',
+			amount_cents: 4275,
+			amount: 42.75,
+			payment_method: 'Transferencia',
+			document_type: 'Factura',
+			document_number: '001-001-000012345',
+			notes: 'Material para la semana',
+		});
+
+		const listResponse = await SELF.fetch(`${LOCAL_API}/expenses`);
+		expect(listResponse.status).toBe(200);
+		expect(await listResponse.json()).toEqual([expect.objectContaining({ id: created.id, amount: 42.75 })]);
+
+		const deleteResponse = await SELF.fetch(`${LOCAL_API}/expenses/${created.id}`, { method: 'DELETE' });
+		expect(deleteResponse.status).toBe(200);
+		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM expenses').first('count')).toBe(0);
+	});
+
+	it('rechaza gastos con monto, fecha o campos no validos', async () => {
+		for (const body of [
+			{ expense_date: '2026-02-30', description: 'Gasto inválido', category: 'Otros', amount: 10, payment_method: 'Efectivo' },
+			{ expense_date: '2026-07-15', description: 'Gasto inválido', category: 'Otros', amount: 0, payment_method: 'Efectivo' },
+			{ expense_date: '2026-07-15', description: 'Gasto inválido', category: 'Otros', amount: 10, payment_method: 'Efectivo', sql: 'DROP TABLE expenses' },
+		]) {
+			const response = await SELF.fetch(`${LOCAL_API}/expenses`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+			expect(response.status).toBe(400);
+			expect(await response.json()).toMatchObject({ code: 'VALIDATION_ERROR' });
+		}
 	});
 
 	it('mantiene los aliases que consume el calendario heredado', async () => {

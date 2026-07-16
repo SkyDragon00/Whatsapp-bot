@@ -17,7 +17,7 @@ export const TOOL_DECLARATIONS = [
 	},
 	{
 		name: 'find_available_slots',
-		description: 'Busca espacios disponibles reales para un servicio en una fecha o rango local del negocio.',
+		description: 'Busca espacios disponibles reales para un servicio en una fecha o rango local del negocio. Si el cliente pide una hora concreta, usa time para comprobar exactamente esa hora.',
 		parametersJsonSchema: {
 			type: 'object',
 			properties: {
@@ -27,6 +27,7 @@ export const TOOL_DECLARATIONS = [
 				date_from: { type: 'string', description: 'Primera fecha local inclusiva en formato YYYY-MM-DD.' },
 				date_to: { type: 'string', description: 'Última fecha local inclusiva en formato YYYY-MM-DD.' },
 				period: { type: 'string', enum: ['mañana', 'tarde', 'noche'] },
+				time: { type: 'string', description: 'Hora local exacta solicitada en formato HH:MM. No combinar con period.' },
 			},
 			additionalProperties: false,
 		},
