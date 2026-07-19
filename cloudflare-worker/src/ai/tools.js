@@ -1,6 +1,6 @@
 import { findAvailableSlots } from '../domain/availability.js';
 import { MAX_AVAILABILITY_RANGE_DAYS } from '../config/constants.js';
-import { addDaysToLocalDate, parseLocalDate, parseTimeToMinutes, zonedDateTimeToUtc } from '../domain/datetime.js';
+import { addDaysToLocalDate, getZonedParts, parseLocalDate, parseTimeToMinutes, zonedDateTimeToUtc } from '../domain/datetime.js';
 import { AiProtocolError, DomainError, ValidationError } from '../domain/errors.js';
 import { requirePositiveInteger, requireString } from '../domain/validation.js';
 import {
@@ -10,6 +10,7 @@ import {
 	listAppointmentsInRange,
 } from '../repositories/appointments-repository.js';
 import { getBusinessSettings } from '../repositories/settings-repository.js';
+import { createPayment } from '../repositories/payments-repository.js';
 import { listServices, resolveService } from '../repositories/services-repository.js';
 import { logError } from '../utils/logging.js';
 import { ALLOWED_TOOL_NAMES } from './tool-definitions.js';
@@ -169,6 +170,32 @@ async function cancelAppointmentTool(rawArgs, context) {
 	return { appointment: serializeAppointment(appointment) };
 }
 
+async function registerPaymentTool(rawArgs, context) {
+	const args = requireArguments(rawArgs);
+	assertAllowedKeys(args, ['payment_date', 'customer_name', 'amount', 'payment_method', 'notes']);
+	const settings = await getBusinessSettings(context.env.DB);
+	if (settings.aiMode !== 'owner') {
+		throw new ValidationError('Registrar pagos solo está disponible en modo dueño.');
+	}
+	const payment = await createPayment(context.env.DB, {
+		...args,
+		telegram_user_id: context.telegram.userId,
+		telegram_chat_id: context.telegram.chatId,
+		telegram_username: context.telegram.username,
+		source_update_id: context.sourceUpdateId,
+	}, { now: context.now });
+	return {
+		payment: {
+			id: payment.id,
+			payment_date: payment.payment_date,
+			customer_name: payment.customer_name,
+			amount: payment.amount_cents / 100,
+			payment_method: payment.payment_method,
+			notes: payment.notes,
+		},
+	};
+}
+
 export function isAllowedToolName(name) {
 	return typeof name === 'string' && ALLOWED_TOOL_NAMES.has(name);
 }
@@ -198,6 +225,8 @@ export async function executeTool(name, rawArgs, context) {
 		}
 		case 'cancel_appointment':
 			return cancelAppointmentTool(args, context);
+		case 'register_payment':
+			return registerPaymentTool(args, context);
 		default:
 			throw new AiProtocolError();
 	}

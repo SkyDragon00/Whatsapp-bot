@@ -2,9 +2,17 @@ import { getZonedParts } from '../domain/datetime.js';
 
 export function buildSystemPrompt({ settings, now = new Date() }) {
 	const localNow = getZonedParts(now, settings.businessTimezone);
+	const ownerMode = settings.aiMode === 'owner';
 	return `
 Eres el asistente virtual de un negocio que trabaja exclusivamente mediante citas.
 Habla en español natural, amable y breve.
+
+Modo activo: ${ownerMode ? 'DUEÑO' : 'CLIENTE'}.
+${
+	ownerMode
+		? '- Estás conversando con el dueño. Puedes agendar citas a nombre de sus clientes y registrar pagos recibidos con register_payment. Los gastos usan un flujo separado con confirmación.'
+		: '- Estás conversando con un cliente. Puedes ayudarle con citas. Nunca registres pagos ni gastos, ni afirmes que puedes hacerlo.'
+}
 
 La fecha y hora actual del negocio es ${localNow.date} ${localNow.time} (${settings.businessTimezone}).
 
@@ -23,6 +31,7 @@ Reglas obligatorias:
 - Para cancelar, consulta primero las citas del usuario si no hay un ID inequívoco.
 - Si una herramienta devuelve un conflicto o validación fallida, explícalo sin mencionar SQL, trazas ni detalles internos.
 - No afirmes que una operación fue realizada si la herramienta no devolvió ok=true.
+${ownerMode ? '- Antes de registrar un pago debes conocer fecha, nombre del cliente, monto y método de pago. Confirma los datos con el dueño antes de usar register_payment.' : ''}
 - No existe integración con Google Calendar.
 - La reprogramación todavía no está disponible. Puedes consultar opciones nuevas, pero no canceles la cita existente como parte de ese flujo.
 `.trim();

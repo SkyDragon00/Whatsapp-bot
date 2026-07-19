@@ -5,15 +5,20 @@ import {
 } from '../config/constants.js';
 import { runGeminiAgent } from '../ai/gemini.js';
 import { buildSystemPrompt } from '../ai/system-prompt.js';
+import { toolDeclarationsForMode } from '../ai/tool-definitions.js';
 import { clearConversation, loadConversation, saveConversation } from '../conversation/store.js';
 import { sendTelegramMessage } from '../integrations/telegram.js';
+import { handleExpenseConfirmation, processExpenseMessage } from '../expenses/flow.js';
+import { isExplicitExpenseText, routeTelegramMessage } from '../expenses/telegram-router.js';
 import { getBusinessSettings } from '../repositories/settings-repository.js';
 import { readJsonWithLimit } from '../utils/http.js';
 import { logError } from '../utils/logging.js';
 import { jsonResponse } from '../utils/responses.js';
 
-const START_MESSAGE =
+const CLIENT_START_MESSAGE =
 	'Hola. Soy tu asistente de citas. Puedo mostrarte servicios, horarios disponibles, agendar y cancelar citas.';
+const OWNER_START_MESSAGE =
+	'Hola. Estoy en modo dueño. Puedo agendar citas para tus clientes y registrar pagos recibidos o gastos del negocio.';
 const CANCEL_MESSAGE = 'Listo, reinicié la conversación actual. Puedes comenzar de nuevo cuando quieras.';
 const SAFE_ERROR_MESSAGE = 'Tuve un problema procesando el mensaje. Intenta nuevamente en unos segundos.';
 
@@ -55,9 +60,10 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 	const userId = String(message.from?.id ?? message.chat.id);
 	const username = typeof message.from?.username === 'string' ? message.from.username : null;
 	const text = typeof message.text === 'string' ? message.text.trim() : '';
+	const route = routeTelegramMessage(message);
 
-	if (!text) {
-		await sendTelegramMessage(chatId, 'Por ahora solo puedo procesar mensajes de texto.', env);
+	if (route.type === 'unsupported') {
+		await processExpenseMessage({ route, chatId, userId, settings: null, env, now });
 		return;
 	}
 	if (text.length > MAX_INCOMING_MESSAGE_LENGTH) {
@@ -65,10 +71,11 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 		return;
 	}
 
-	const command = commandFromText(text);
+	const command = route.type === 'text' ? commandFromText(text) : '';
 	if (command === '/start') {
 		await clearConversation(env.CONVERSATIONS, chatId);
-		await sendTelegramMessage(chatId, START_MESSAGE, env);
+		const settings = await getBusinessSettings(env.DB);
+		await sendTelegramMessage(chatId, settings.aiMode === 'owner' ? OWNER_START_MESSAGE : CLIENT_START_MESSAGE, env);
 		return;
 	}
 	if (command === '/cancelar') {
@@ -76,14 +83,22 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 		await sendTelegramMessage(chatId, CANCEL_MESSAGE, env);
 		return;
 	}
+	const settings = await getBusinessSettings(env.DB);
+	if (route.type === 'text' && await handleExpenseConfirmation({ text, chatId, userId, env, now })) return;
+	if (settings.aiMode === 'owner' && (route.type !== 'text' || isExplicitExpenseText(text))) {
+		await processExpenseMessage({ route, chatId, userId, settings, env, now });
+		return;
+	}
+	if (route.type !== 'text') {
+		await sendTelegramMessage(chatId, 'El registro de gastos solo está disponible en modo dueño.', env);
+		return;
+	}
 
-	const [history, settings] = await Promise.all([
-		loadConversation(env.CONVERSATIONS, chatId),
-		getBusinessSettings(env.DB),
-	]);
+	const history = await loadConversation(env.CONVERSATIONS, chatId);
 	const responseText = await runGeminiAgent({
 		apiKey: env.GEMINI_API_KEY,
 		systemPrompt: buildSystemPrompt({ settings, now }),
+		toolDeclarations: toolDeclarationsForMode(settings.aiMode),
 		history,
 		userMessage: text,
 		diagnostics: env.GEMINI_DIAGNOSTICS === 'true',

@@ -67,6 +67,28 @@ export const TOOL_DECLARATIONS = [
 			additionalProperties: false,
 		},
 	},
+	{
+		name: 'register_payment',
+		description: 'Registra un pago recibido de un cliente. Esta operación solo está autorizada cuando la IA está en modo dueño.',
+		parametersJsonSchema: {
+			type: 'object',
+			properties: {
+				payment_date: { type: 'string', description: 'Fecha local del pago en formato YYYY-MM-DD.' },
+				customer_name: { type: 'string', description: 'Nombre del cliente que realizó el pago.' },
+				amount: { type: 'number', description: 'Monto pagado en la moneda del negocio, con máximo dos decimales.' },
+				payment_method: { type: 'string', description: 'Método de pago, por ejemplo efectivo o transferencia.' },
+				notes: { type: 'string', description: 'Detalle o concepto opcional del pago.' },
+			},
+			required: ['payment_date', 'customer_name', 'amount', 'payment_method'],
+			additionalProperties: false,
+		},
+	},
 ];
 
 export const ALLOWED_TOOL_NAMES = new Set(TOOL_DECLARATIONS.map((tool) => tool.name));
+
+export function toolDeclarationsForMode(aiMode) {
+	return aiMode === 'owner'
+		? TOOL_DECLARATIONS
+		: TOOL_DECLARATIONS.filter((tool) => tool.name !== 'register_payment');
+}

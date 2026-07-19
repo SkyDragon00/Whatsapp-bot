@@ -4,6 +4,8 @@ import {
 } from '../config/constants.js';
 import { fetchWithTimeout, readJsonWithLimit } from '../utils/http.js';
 
+const MAX_TELEGRAM_MEDIA_BYTES = 20 * 1024 * 1024;
+
 export async function sendTelegramMessage(chatId, text, env, { fetchImpl = fetch } = {}) {
 	if (!env.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN_NOT_CONFIGURED');
 	const safeText = String(text).trim().slice(0, MAX_TELEGRAM_MESSAGE_LENGTH) || 'No pude generar una respuesta.';
@@ -24,4 +26,27 @@ export async function sendTelegramMessage(chatId, text, env, { fetchImpl = fetch
 		throw error;
 	}
 	return result.result;
+}
+
+export async function downloadTelegramFile(fileId, env, { fetchImpl = fetch } = {}) {
+	if (!env.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN_NOT_CONFIGURED');
+	const metadataResponse = await fetchWithTimeout(
+		`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${encodeURIComponent(fileId)}`,
+		{},
+		TELEGRAM_TIMEOUT_MS,
+		fetchImpl,
+	);
+	const metadata = await readJsonWithLimit(metadataResponse, 256_000);
+	if (!metadataResponse.ok || !metadata?.ok || !metadata.result?.file_path) throw new Error('TELEGRAM_GET_FILE_FAILED');
+	if (Number(metadata.result.file_size) > MAX_TELEGRAM_MEDIA_BYTES) throw new Error('TELEGRAM_MEDIA_TOO_LARGE');
+	const fileResponse = await fetchWithTimeout(
+		`https://api.telegram.org/file/bot${env.TELEGRAM_BOT_TOKEN}/${metadata.result.file_path}`,
+		{},
+		TELEGRAM_TIMEOUT_MS,
+		fetchImpl,
+	);
+	if (!fileResponse.ok) throw new Error('TELEGRAM_DOWNLOAD_FAILED');
+	const bytes = await fileResponse.arrayBuffer();
+	if (bytes.byteLength > MAX_TELEGRAM_MEDIA_BYTES) throw new Error('TELEGRAM_MEDIA_TOO_LARGE');
+	return { bytes, mimeType: fileResponse.headers.get('content-type') };
 }

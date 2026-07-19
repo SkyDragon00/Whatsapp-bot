@@ -44,19 +44,19 @@ function functionCallNamesFromContents(contents) {
 	);
 }
 
-function requestMetadata(contents, iteration) {
+function requestMetadata(contents, iteration, toolDeclarations = TOOL_DECLARATIONS) {
 	return {
 		iteration: iteration + 1,
 		contentsCount: contents.length,
-		toolNames: TOOL_DECLARATIONS.map((tool) => tool.name),
+		toolNames: toolDeclarations.map((tool) => tool.name),
 		functionCallNames: functionCallNamesFromContents(contents),
 	};
 }
 
-async function requestGemini({ apiKey, systemPrompt, contents, fetchImpl, iteration, diagnostics }) {
+async function requestGemini({ apiKey, systemPrompt, contents, fetchImpl, iteration, diagnostics, toolDeclarations }) {
 	if (!apiKey) throw new Error('GEMINI_API_KEY_NOT_CONFIGURED');
 	const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-	const metadata = requestMetadata(contents, iteration);
+	const metadata = requestMetadata(contents, iteration, toolDeclarations);
 	if (diagnostics) logEvent('info', 'gemini_iteration_started', metadata);
 	const response = await fetchWithTimeout(
 		endpoint,
@@ -69,7 +69,7 @@ async function requestGemini({ apiKey, systemPrompt, contents, fetchImpl, iterat
 			body: JSON.stringify({
 				systemInstruction: { parts: [{ text: systemPrompt }] },
 				contents,
-				tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+				tools: [{ functionDeclarations: toolDeclarations }],
 				toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
 				generationConfig: { temperature: 0.2, maxOutputTokens: 600 },
 				store: false,
@@ -123,19 +123,20 @@ export async function runGeminiAgent({
 	fetchImpl = fetch,
 	executeToolResult = executeToolSafely,
 	diagnostics = false,
+	toolDeclarations = TOOL_DECLARATIONS,
 }) {
 	const contents = historyToContents(history, userMessage);
 	let totalToolCalls = 0;
 
 	for (let iteration = 0; iteration < GEMINI_MAX_TOOL_ITERATIONS; iteration += 1) {
-		const result = await requestGemini({ apiKey, systemPrompt, contents, fetchImpl, iteration, diagnostics });
+		const result = await requestGemini({ apiKey, systemPrompt, contents, fetchImpl, iteration, diagnostics, toolDeclarations });
 		const modelContent = getCandidateContent(result);
 		const functionCalls = modelContent.parts
 			.map((part) => part.functionCall)
 			.filter(Boolean);
 		if (diagnostics) {
 			logEvent('info', 'gemini_iteration_completed', {
-				...requestMetadata(contents, iteration),
+				...requestMetadata(contents, iteration, toolDeclarations),
 				functionCallNames: functionCalls.map((call) => sanitizeIdentifier(call.name)).filter(Boolean),
 			});
 		}

@@ -1,11 +1,13 @@
 import {
 	createExecutionContext,
+	applyD1Migrations,
 	env,
 	waitOnExecutionContext,
 } from 'cloudflare:test';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadConversation, saveConversation } from '../src/conversation/store.js';
 import { handleTelegramWebhook, processTelegramUpdate } from '../src/routes/telegram.js';
+import { saveBusinessSettings } from '../src/repositories/settings-repository.js';
 
 const update = {
 	update_id: 990001,
@@ -26,6 +28,9 @@ function requestForUpdate() {
 }
 
 describe('webhook de Telegram', () => {
+	beforeAll(async () => {
+		await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
+	});
 	beforeEach(async () => {
 		await env.CONVERSATIONS.delete('telegram-update:update:990001');
 		await env.CONVERSATIONS.delete('conversation:8001');
@@ -88,5 +93,21 @@ describe('webhook de Telegram', () => {
 
 		expect(await loadConversation(env.CONVERSATIONS, '8001')).toEqual([]);
 		expect(fetchImpl).toHaveBeenCalledTimes(1);
+	});
+
+	it('presenta las capacidades de pagos al iniciar en modo dueno', async () => {
+		const settings = await (await env.DB.prepare("SELECT value FROM settings WHERE key = 'schedule'").first()).value;
+		const current = JSON.parse(settings);
+		await saveBusinessSettings(env.DB, { ...current, aiMode: 'owner' });
+		const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), {
+			status: 200,
+			headers: { 'Content-Type': 'application/json' },
+		}));
+		vi.stubGlobal('fetch', fetchImpl);
+
+		await processTelegramUpdate({ update, message: { ...update.message, text: '/start' }, identity: 'owner-start', env });
+
+		const telegramBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
+		expect(telegramBody.text).toContain('registrar pagos');
 	});
 });

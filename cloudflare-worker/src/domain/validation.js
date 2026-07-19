@@ -41,6 +41,7 @@ export function normalizeBusinessSettings(input) {
 	assertAllowedKeys(
 		value,
 		new Set([
+			'aiMode',
 			'appointmentDurationMinutes',
 			'businessTimezone',
 			'slotIntervalMinutes',
@@ -53,6 +54,10 @@ export function normalizeBusinessSettings(input) {
 		'La configuración',
 	);
 	const duration = Number(value.appointmentDurationMinutes);
+	const aiMode = value.aiMode ?? DEFAULT_BUSINESS_SETTINGS.aiMode;
+	if (!['client', 'owner'].includes(aiMode)) {
+		throw new ValidationError('El modo de IA debe ser cliente o dueño.');
+	}
 	if (!Number.isInteger(duration) || duration < 15 || duration > 480) {
 		throw new ValidationError('La duración predeterminada debe estar entre 15 y 480 minutos.');
 	}
@@ -120,6 +125,7 @@ export function normalizeBusinessSettings(input) {
 	const closedDates = [...new Set(rawClosedDates.map((date) => parseLocalDate(date).date))].sort();
 
 	return {
+		aiMode,
 		appointmentDurationMinutes: duration,
 		businessTimezone,
 		slotIntervalMinutes: slotInterval,

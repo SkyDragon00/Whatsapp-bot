@@ -10,6 +10,7 @@ export const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 export const GEMINI_MAX_TOOL_ITERATIONS = 5;
 export const GEMINI_MAX_TOOL_CALLS = 8;
 export const GEMINI_TIMEOUT_MS = 15_000;
+export const GEMINI_EXPENSE_TIMEOUT_MS = 25_000;
 export const TELEGRAM_TIMEOUT_MS = 8_000;
 export const MAX_TELEGRAM_MESSAGE_LENGTH = 4_000;
 export const MAX_INCOMING_MESSAGE_LENGTH = 2_000;
@@ -30,6 +31,7 @@ export const DEFAULT_BUSINESS_HOURS = [
 ];
 
 export const DEFAULT_BUSINESS_SETTINGS = {
+	aiMode: 'client',
 	appointmentDurationMinutes: DEFAULT_APPOINTMENT_DURATION_MINUTES,
 	businessTimezone: DEFAULT_BUSINESS_TIMEZONE,
 	slotIntervalMinutes: DEFAULT_SLOT_INTERVAL_MINUTES,

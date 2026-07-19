@@ -10,7 +10,9 @@
 
 	"vars": {
 		"ADMIN_ALLOWED_ORIGINS": "http://localhost:3000,http://127.0.0.1:3000",
-		"GEMINI_DIAGNOSTICS": "true"
+		"GEMINI_DIAGNOSTICS": "true",
+		"BUSINESS_CURRENCY": "USD",
+		"EXPENSE_CATEGORIES": "Insumos,Servicios,Transporte,Alimentación,Marketing,Mantenimiento,Otros"
 	},
 	"observability": {
 		"enabled": true

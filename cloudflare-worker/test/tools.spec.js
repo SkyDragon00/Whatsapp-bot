@@ -22,6 +22,8 @@ describe.sequential('herramientas controladas del backend', () => {
 	beforeEach(async () => {
 		await env.DB.batch([
 			env.DB.prepare('DELETE FROM appointments'),
+			env.DB.prepare('DELETE FROM payments'),
+			env.DB.prepare('DELETE FROM expenses'),
 			env.DB.prepare('DELETE FROM services'),
 			env.DB.prepare('DELETE FROM settings'),
 		]);
@@ -163,4 +165,36 @@ describe.sequential('herramientas controladas del backend', () => {
 		);
 		expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
 	});
+
+	it('impide registrar pagos en modo cliente', async () => {
+		const result = await executeToolSafely('register_payment', {
+			payment_date: '2026-07-14',
+			customer_name: 'Cliente Uno',
+			amount: 25.5,
+			payment_method: 'Efectivo',
+		}, context());
+
+		expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM payments').first('count')).toBe(0);
+	});
+
+	it('registra pagos con trazabilidad de Telegram en modo dueño', async () => {
+		const current = await (await SELF.fetch('http://localhost/api/settings')).json();
+		await saveBusinessSettings(env.DB, { ...current, aiMode: 'owner' });
+		const result = await executeToolSafely('register_payment', {
+			payment_date: '2026-07-14',
+			customer_name: 'Cliente Dos',
+			amount: 40,
+			payment_method: 'Transferencia',
+			notes: 'Abono',
+		}, context());
+
+		expect(result).toMatchObject({
+			ok: true,
+			data: { payment: { customer_name: 'Cliente Dos', amount: 40, payment_method: 'Transferencia' } },
+		});
+		const stored = await env.DB.prepare('SELECT * FROM payments WHERE id = ?1').bind(result.data.payment.id).first();
+		expect(stored).toMatchObject({ telegram_user_id: '7001', telegram_chat_id: '8001', source_update_id: 'telegram:update:phase3-test' });
+	});
+
 });
