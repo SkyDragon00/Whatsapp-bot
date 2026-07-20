@@ -35,6 +35,7 @@ describe.sequential('API administrativa', () => {
 	beforeEach(async () => {
 		await env.DB.batch([
 			env.DB.prepare('DELETE FROM appointments'),
+			env.DB.prepare('DELETE FROM customers'),
 			env.DB.prepare('DELETE FROM ai_knowledge_documents'),
 			env.DB.prepare('DELETE FROM expenses'),
 			env.DB.prepare('DELETE FROM services'),
@@ -219,6 +220,53 @@ describe.sequential('API administrativa', () => {
 				end_at: '2026-07-20T14:45:00.000Z',
 			}),
 		]);
+	});
+
+	it('crea clientes manualmente y conserva el historial creado desde Telegram', async () => {
+		const manualResponse = await SELF.fetch(`${LOCAL_API}/customers`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ first_name: 'Ana María', last_name: 'Pérez López' }),
+		});
+		expect(manualResponse.status).toBe(201);
+		expect(await manualResponse.json()).toMatchObject({ full_name: 'Ana María Pérez López' });
+
+		const appointment = await createAppointment(env.DB, {
+			telegram_user_id: '3001', telegram_chat_id: '4001', telegram_username: 'ana',
+			customer_name: 'Ana María Pérez López', service_id: service.id,
+			start_datetime: '2026-07-20T14:00:00.000Z', source_update_id: 'customer-history',
+		}, { now: new Date('2026-07-14T00:00:00.000Z') });
+		expect(appointment.customer_id).toBeTypeOf('number');
+
+		const customersResponse = await SELF.fetch(`${LOCAL_API}/customers`);
+		const customers = await customersResponse.json();
+		expect(customers).toEqual([expect.objectContaining({ full_name: 'Ana María Pérez López', appointment_count: 1 })]);
+
+		const detailResponse = await SELF.fetch(`${LOCAL_API}/customers/${customers[0].id}`);
+		expect(await detailResponse.json()).toMatchObject({
+			telegram_username: 'ana',
+			appointments: [expect.objectContaining({ id: appointment.id, service_name: 'Corte clasico' })],
+		});
+	});
+
+	it('edita y elimina clientes sin borrar sus citas', async () => {
+		const appointment = await createAppointment(env.DB, {
+			telegram_user_id: '5001', telegram_chat_id: '6001', customer_name: 'Bob Esponja',
+			service_id: service.id, start_datetime: '2026-07-20T14:00:00.000Z', source_update_id: 'customer-actions',
+		}, { now: new Date('2026-07-14T00:00:00.000Z') });
+
+		const updateResponse = await SELF.fetch(`${LOCAL_API}/customers/${appointment.customer_id}`, {
+			method: 'PUT', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ first_name: 'Roberto', last_name: 'Esponja' }),
+		});
+		expect(updateResponse.status).toBe(200);
+		expect(await updateResponse.json()).toMatchObject({ full_name: 'Roberto Esponja' });
+		expect(await env.DB.prepare('SELECT patient_name FROM appointments WHERE id = ?1').bind(appointment.id).first('patient_name')).toBe('Roberto Esponja');
+
+		const deleteResponse = await SELF.fetch(`${LOCAL_API}/customers/${appointment.customer_id}`, { method: 'DELETE' });
+		expect(deleteResponse.status).toBe(200);
+		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM customers').first('count')).toBe(0);
+		expect(await env.DB.prepare('SELECT customer_id FROM appointments WHERE id = ?1').bind(appointment.id).first('customer_id')).toBeNull();
+		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM appointments').first('count')).toBe(1);
 	});
 
 	it('reprograma y cancela mediante endpoints administrativos validados', async () => {

@@ -10,6 +10,7 @@ import { addMinutes, getZonedParts, toUtcIso } from '../domain/datetime.js';
 import { requirePositiveInteger, requireString, validateCreateAppointmentInput } from '../domain/validation.js';
 import { getBusinessSettings } from './settings-repository.js';
 import { getServiceById } from './services-repository.js';
+import { findOrCreateCustomer } from './customers-repository.js';
 
 export async function listAppointments(db, { includeCancelled = false, limit = 500 } = {}) {
 	if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
@@ -77,6 +78,12 @@ export async function createAppointment(db, input, { now = new Date() } = {}) {
 		const existing = await findAppointmentBySourceUpdateId(db, appointment.source_update_id);
 		if (existing) return existing;
 	}
+	const customer = await findOrCreateCustomer(db, {
+		full_name: appointment.patient_name,
+		telegram_user_id: appointment.telegram_user_id,
+		telegram_chat_id: appointment.telegram_chat_id,
+		telegram_username: appointment.telegram_username,
+	}, { now });
 
 	const [service, settings] = await Promise.all([
 		getServiceById(db, appointment.service_id),
@@ -105,12 +112,12 @@ export async function createAppointment(db, input, { now = new Date() } = {}) {
 				`INSERT INTO appointments (
 					telegram_user_id, telegram_chat_id, telegram_username, patient_name,
 					service_id, service, service_name, date_text, date_iso,
-					start_at, end_at, status, phone, created_at, updated_at, source_update_id
+					start_at, end_at, status, phone, created_at, updated_at, source_update_id, customer_id
 				)
 				SELECT
 					?1, ?2, ?3, ?4,
 					s.id, s.name, s.name, ?5, ?6,
-					?7, ?8, '${ACTIVE_APPOINTMENT_STATUS}', ?9, ?10, ?10, ?11
+					?7, ?8, '${ACTIVE_APPOINTMENT_STATUS}', ?9, ?10, ?10, ?11, ?13
 				FROM services AS s
 				WHERE s.id = ?12
 					AND s.enabled = 1
@@ -135,6 +142,7 @@ export async function createAppointment(db, input, { now = new Date() } = {}) {
 				timestamp,
 				appointment.source_update_id,
 				appointment.service_id,
+				customer.id,
 			)
 			.first();
 

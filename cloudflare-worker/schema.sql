@@ -10,6 +10,18 @@ CREATE TABLE IF NOT EXISTS services (
 	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS customers (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	first_name TEXT NOT NULL,
+	last_name TEXT NOT NULL,
+	full_name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+	telegram_user_id TEXT,
+	telegram_chat_id TEXT,
+	telegram_username TEXT,
+	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS appointments (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	telegram_user_id TEXT NOT NULL,
@@ -28,7 +40,8 @@ CREATE TABLE IF NOT EXISTS appointments (
 		CHECK (status IN ('confirmed', 'cancelled', 'completed', 'no_show')),
 	phone TEXT,
 	updated_at TEXT,
-	source_update_id TEXT
+	source_update_id TEXT,
+	customer_id INTEGER REFERENCES customers(id)
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -84,6 +97,9 @@ VALUES
 CREATE INDEX IF NOT EXISTS idx_appointments_date_iso ON appointments(date_iso);
 CREATE INDEX IF NOT EXISTS idx_appointments_active_range ON appointments(status, start_at, end_at);
 CREATE INDEX IF NOT EXISTS idx_appointments_telegram_user ON appointments(telegram_user_id, status, start_at);
+CREATE INDEX IF NOT EXISTS idx_appointments_customer ON appointments(customer_id, start_at DESC);
+CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(last_name COLLATE NOCASE, first_name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_customers_telegram_user ON customers(telegram_user_id);
 CREATE INDEX IF NOT EXISTS idx_services_enabled_name ON services(enabled, name);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_source_update ON appointments(source_update_id)
 WHERE source_update_id IS NOT NULL;
