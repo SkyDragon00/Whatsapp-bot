@@ -66,10 +66,20 @@ CREATE TABLE IF NOT EXISTS payments (
 	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS ai_knowledge_documents (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	mime_type TEXT NOT NULL,
+	content TEXT NOT NULL,
+	size_bytes INTEGER NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 100000),
+	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT OR IGNORE INTO settings (key, value)
 VALUES
 	('schedule', '{"appointmentDurationMinutes":60,"businessTimezone":"America/Guayaquil","slotIntervalMinutes":15,"minimumBookingNoticeMinutes":0,"maximumAdvanceBookingDays":31,"closedDates":[],"businessHours":[{"day":0,"enabled":false,"start":"09:00","end":"17:00"},{"day":1,"enabled":true,"start":"09:00","end":"17:00"},{"day":2,"enabled":true,"start":"09:00","end":"17:00"},{"day":3,"enabled":true,"start":"09:00","end":"17:00"},{"day":4,"enabled":true,"start":"09:00","end":"17:00"},{"day":5,"enabled":true,"start":"09:00","end":"17:00"},{"day":6,"enabled":false,"start":"09:00","end":"17:00"}]}'),
-	('business_profile', '{"businessName":null,"preferredTone":null,"greeting":null,"address":null,"contactPhone":null,"cancellationPolicy":null,"arrivalInstructions":null,"generalNotes":null,"acceptedPaymentMethods":[]}');
+	('business_profile', '{"businessName":null,"communicationStyle":"semiformal","preferredTone":null,"greeting":null,"address":null,"contactPhone":null,"cancellationPolicy":null,"arrivalInstructions":null,"generalNotes":null,"acceptedPaymentMethods":[]}');
 
 CREATE INDEX IF NOT EXISTS idx_appointments_date_iso ON appointments(date_iso);
 CREATE INDEX IF NOT EXISTS idx_appointments_active_range ON appointments(status, start_at, end_at);
@@ -84,6 +94,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_expenses_source_pending_id
 CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date DESC, id DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_source_update ON payments(source_update_id)
 WHERE source_update_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_knowledge_documents_created
+	ON ai_knowledge_documents(created_at DESC, id DESC);
 
 CREATE TRIGGER IF NOT EXISTS appointments_validate_interval_insert
 BEFORE INSERT ON appointments

@@ -11,6 +11,7 @@ import { sendTelegramMessage } from '../integrations/telegram.js';
 import { handleExpenseConfirmation, processExpenseMessage } from '../expenses/flow.js';
 import { isExplicitExpenseText, routeTelegramMessage } from '../expenses/telegram-router.js';
 import { getBusinessSettings } from '../repositories/settings-repository.js';
+import { getKnowledgeContext } from '../repositories/knowledge-repository.js';
 import { readJsonWithLimit } from '../utils/http.js';
 import { logError } from '../utils/logging.js';
 import { jsonResponse } from '../utils/responses.js';
@@ -95,9 +96,16 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 	}
 
 	const history = await loadConversation(env.CONVERSATIONS, chatId);
+	let knowledgeDocuments = [];
+	try {
+		knowledgeDocuments = await getKnowledgeContext(env.DB);
+	} catch (error) {
+		// Los documentos enriquecen las respuestas, pero nunca deben tumbar el flujo principal del bot.
+		logError('knowledge_context_unavailable', error, { identity });
+	}
 	const responseText = await runGeminiAgent({
 		apiKey: env.GEMINI_API_KEY,
-		systemPrompt: buildSystemPrompt({ settings, now }),
+		systemPrompt: buildSystemPrompt({ settings, knowledgeDocuments, now }),
 		toolDeclarations: toolDeclarationsForMode(settings.aiMode),
 		history,
 		userMessage: text,

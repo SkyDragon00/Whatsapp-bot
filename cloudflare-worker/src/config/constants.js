@@ -41,6 +41,7 @@ export const DEFAULT_BUSINESS_SETTINGS = {
 	businessHours: DEFAULT_BUSINESS_HOURS,
 	businessProfile: {
 		businessName: null,
+		communicationStyle: 'semiformal',
 		preferredTone: null,
 		greeting: null,
 		address: null,

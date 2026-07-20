@@ -381,6 +381,23 @@
   .settings-card {
     width: 640px;
   }
+  .ai-settings-section { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px; }
+  .ai-settings-section h3 { margin: 0 0 6px; font: 500 18px 'Google Sans', 'Roboto', sans-serif; }
+  .ai-settings-section > p { margin: 0 0 16px; color: var(--text-secondary); font-size: 13px; }
+  .ai-preferences { display: grid; gap: 13px; }
+  .style-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .style-option { display: grid; gap: 4px; padding: 13px; border: 1px solid var(--border); border-radius: 9px; cursor: pointer; }
+  .style-option:has(input:checked) { border-color: var(--blue); background: #e8f0fe; }
+  .style-option-title { font-weight: 500; }
+  .style-option-description { color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
+  .knowledge-upload { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 14px; border: 1px dashed var(--border); border-radius: 9px; background: #fafbfd; }
+  .knowledge-upload input { flex: 1; min-width: 240px; }
+  .knowledge-list { display: grid; gap: 8px; margin-top: 14px; }
+  .knowledge-row { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; }
+  .knowledge-row-info { flex: 1; min-width: 0; }
+  .knowledge-row-name { font-weight: 500; overflow-wrap: anywhere; }
+  .knowledge-row-meta { color: var(--text-secondary); font-size: 12px; margin-top: 3px; }
+  .knowledge-empty { color: var(--text-secondary); font-size: 13px; padding: 12px 0; }
   .settings-body {
     padding-bottom: 24px;
     max-height: calc(100vh - 100px);
@@ -765,16 +782,47 @@
     <section class="app-view" id="aiSettingsView" data-view-panel="ai-settings" hidden>
       <div class="content-card ai-mode-card">
         <h2>Configuración de IA</h2>
-        <p>Elige para quién responderá el bot de Telegram.</p>
+        <p>Define cómo responderá el bot y la información autorizada que puede utilizar.</p>
         <form id="aiModeForm">
           <div class="role-switch" role="radiogroup" aria-label="Rol del asistente">
             <label class="role-option"><input type="radio" name="aiMode" value="client" checked />Cliente</label>
             <label class="role-option"><input type="radio" name="aiMode" value="owner" />Dueño</label>
           </div>
           <div class="ai-mode-detail" id="aiModeDetail"></div>
+          <div class="ai-settings-section">
+            <h3>Preferencias del asistente</h3>
+            <p>Estos campos controlan el tono y los datos generales que presenta el asistente.</p>
+            <div class="ai-preferences">
+              <div>
+                <div class="field-label">Estilo de comunicación</div>
+                <div class="style-options" role="radiogroup" aria-label="Estilo de comunicación del asistente">
+                  <label class="style-option"><input type="radio" name="communicationStyle" value="formal" /><span class="style-option-title">Formal</span><span class="style-option-description">Profesional, respetuoso y de usted.</span></label>
+                  <label class="style-option"><input type="radio" name="communicationStyle" value="semiformal" checked /><span class="style-option-title">Semiformal</span><span class="style-option-description">Amable, cercano y profesional.</span></label>
+                  <label class="style-option"><input type="radio" name="communicationStyle" value="friend" /><span class="style-option-title">Amigo</span><span class="style-option-description">Informal, cariñoso y espontáneo.</span></label>
+                </div>
+              </div>
+              <div><label class="field-label" for="contactPhone">Teléfono</label><input class="wide-input" id="contactPhone" type="text" maxlength="40" /></div>
+              <div><label class="field-label" for="businessGreeting">Saludo</label><textarea class="wide-input" id="businessGreeting" maxlength="300"></textarea></div>
+              <div><label class="field-label" for="businessAddress">Dirección</label><textarea class="wide-input" id="businessAddress" maxlength="300"></textarea></div>
+              <div><label class="field-label" for="cancellationPolicy">Política de cancelación</label><textarea class="wide-input" id="cancellationPolicy" maxlength="1000"></textarea></div>
+              <div><label class="field-label" for="arrivalInstructions">Instrucciones para llegar</label><textarea class="wide-input" id="arrivalInstructions" maxlength="1000"></textarea></div>
+              <div><label class="field-label" for="generalNotes">Notas generales</label><textarea class="wide-input" id="generalNotes" maxlength="1000"></textarea></div>
+              <div><label class="field-label" for="paymentMethods">Métodos de pago (separados por coma)</label><input class="wide-input" id="paymentMethods" type="text" /></div>
+            </div>
+          </div>
+          <div class="ai-settings-section">
+            <h3>Documentos de referencia</h3>
+            <p>El bot usará estos archivos como fuente para responder inquietudes. Si una respuesta no está documentada, indicará que no sabe.</p>
+            <div class="knowledge-upload">
+              <input id="knowledgeFile" type="file" accept=".txt,.md,.markdown,.csv,.json,text/plain,text/markdown,text/csv,application/json" />
+              <button class="text-button" id="uploadKnowledge" type="button">Subir documento</button>
+            </div>
+            <div class="field-help">Formatos: TXT, Markdown, CSV o JSON. Máximo 100 KB por archivo y 500 KB en total.</div>
+            <div class="knowledge-list" id="knowledgeList"></div>
+          </div>
           <div class="ai-mode-actions">
             <span class="ai-mode-message" id="aiModeMessage" role="status" aria-live="polite"></span>
-            <button class="primary-button" type="submit">Guardar modo</button>
+            <button class="primary-button" type="submit">Guardar configuración de IA</button>
           </div>
         </form>
       </div>
@@ -901,33 +949,6 @@
         <button class="text-button" type="button" id="addService">+ Agregar servicio</button>
       </div>
 
-      <div class="settings-section">
-        <div class="field-label">Preferencias del asistente</div>
-        <div class="settings-grid">
-          <div>
-            <label class="field-label" for="preferredTone">Saludo o tono preferido</label>
-            <input class="wide-input" id="preferredTone" type="text" maxlength="120" />
-          </div>
-          <div>
-            <label class="field-label" for="contactPhone">Teléfono</label>
-            <input class="wide-input" id="contactPhone" type="text" maxlength="40" />
-          </div>
-        </div>
-        <label class="field-label" for="businessGreeting">Saludo</label>
-        <textarea class="wide-input" id="businessGreeting" maxlength="300"></textarea>
-        <label class="field-label" for="businessAddress">Dirección</label>
-        <textarea class="wide-input" id="businessAddress" maxlength="300"></textarea>
-        <label class="field-label" for="cancellationPolicy">Política de cancelación</label>
-        <textarea class="wide-input" id="cancellationPolicy" maxlength="1000"></textarea>
-        <label class="field-label" for="arrivalInstructions">Instrucciones para llegar</label>
-        <textarea class="wide-input" id="arrivalInstructions" maxlength="1000"></textarea>
-        <label class="field-label" for="generalNotes">Notas generales</label>
-        <textarea class="wide-input" id="generalNotes" maxlength="1000"></textarea>
-        <label class="field-label" for="paymentMethods">Métodos de pago (separados por coma)</label>
-        <input class="wide-input" id="paymentMethods" type="text" />
-        <div class="field-help">Los campos vacíos no se presentarán como información disponible al cliente.</div>
-      </div>
-
       <div class="settings-error" id="settingsError" role="alert"></div>
 
       <div class="settings-actions">
@@ -962,7 +983,6 @@
   const businessName = document.getElementById('businessName');
   const minimumBookingNotice = document.getElementById('minimumBookingNotice');
   const maximumAdvanceDays = document.getElementById('maximumAdvanceDays');
-  const preferredTone = document.getElementById('preferredTone');
   const businessGreeting = document.getElementById('businessGreeting');
   const businessAddress = document.getElementById('businessAddress');
   const contactPhone = document.getElementById('contactPhone');
@@ -995,12 +1015,16 @@
   const aiModeForm = document.getElementById('aiModeForm');
   const aiModeDetail = document.getElementById('aiModeDetail');
   const aiModeMessage = document.getElementById('aiModeMessage');
+  const knowledgeFile = document.getElementById('knowledgeFile');
+  const uploadKnowledge = document.getElementById('uploadKnowledge');
+  const knowledgeList = document.getElementById('knowledgeList');
 
   const dayLabels = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
   const viewTitles = { invoices: 'Facturar', expenses: 'Gastos', calendar: 'Calendario', 'ai-settings': 'Configuración de IA' };
   let currentSettings = null;
   let currentServices = [];
   let currentExpenses = [];
+  let currentKnowledgeDocuments = [];
   let servicesApiAvailable = true;
   let calendar = null;
   let currentAppointment = null;
@@ -1136,7 +1160,11 @@
     minimumBookingNotice.value = settings.minimumBookingNoticeMinutes ?? 0;
     maximumAdvanceDays.value = settings.maximumAdvanceBookingDays ?? 31;
     businessName.value = profile.businessName || '';
-    preferredTone.value = profile.preferredTone || '';
+    const communicationStyle = ['formal', 'semiformal', 'friend'].includes(profile.communicationStyle)
+      ? profile.communicationStyle
+      : 'semiformal';
+    const styleInput = aiModeForm.querySelector(`input[name="communicationStyle"][value="${communicationStyle}"]`);
+    if (styleInput) styleInput.checked = true;
     businessGreeting.value = profile.greeting || '';
     businessAddress.value = profile.address || '';
     contactPhone.value = profile.contactPhone || '';
@@ -1157,6 +1185,21 @@
     `).join('');
     updateDisabledTimeInputs();
     renderServices();
+  }
+
+  function readBusinessProfileForm() {
+    return {
+      businessName: currentSettings?.businessProfile?.businessName || '',
+      communicationStyle: new FormData(aiModeForm).get('communicationStyle') || 'semiformal',
+      preferredTone: currentSettings?.businessProfile?.preferredTone || '',
+      greeting: businessGreeting.value.trim(),
+      address: businessAddress.value.trim(),
+      contactPhone: contactPhone.value.trim(),
+      cancellationPolicy: cancellationPolicy.value.trim(),
+      arrivalInstructions: arrivalInstructions.value.trim(),
+      generalNotes: generalNotes.value.trim(),
+      acceptedPaymentMethods: paymentMethods.value.split(',').map((item) => item.trim()).filter(Boolean),
+    };
   }
 
   function createInput(type, className, value, attributes = {}) {
@@ -1208,17 +1251,7 @@
         start: row.querySelector('.day-start').value,
         end: row.querySelector('.day-end').value,
       })),
-      businessProfile: {
-        businessName: businessName.value.trim(),
-        preferredTone: preferredTone.value.trim(),
-        greeting: businessGreeting.value.trim(),
-        address: businessAddress.value.trim(),
-        contactPhone: contactPhone.value.trim(),
-        cancellationPolicy: cancellationPolicy.value.trim(),
-        arrivalInstructions: arrivalInstructions.value.trim(),
-        generalNotes: generalNotes.value.trim(),
-        acceptedPaymentMethods: paymentMethods.value.split(',').map((item) => item.trim()).filter(Boolean),
-      },
+      businessProfile: { ...readBusinessProfileForm(), businessName: businessName.value.trim() },
     };
   }
 
@@ -1229,6 +1262,72 @@
     aiModeDetail.innerHTML = mode === 'owner'
       ? '<strong>Modo dueño</strong>Puede agendar citas para clientes y registrar pagos recibidos o gastos del negocio desde Telegram.'
       : '<strong>Modo cliente</strong>Puede consultar servicios, revisar disponibilidad y gestionar sus citas. No puede registrar pagos ni gastos.';
+  }
+
+  function formatFileSize(bytes) {
+    return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  function renderKnowledgeDocuments() {
+    knowledgeList.replaceChildren();
+    if (currentKnowledgeDocuments.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'knowledge-empty';
+      empty.textContent = 'No hay documentos cargados.';
+      knowledgeList.append(empty);
+      return;
+    }
+    for (const documentItem of currentKnowledgeDocuments) {
+      const row = document.createElement('div');
+      row.className = 'knowledge-row';
+      const info = document.createElement('div');
+      info.className = 'knowledge-row-info';
+      const name = document.createElement('div');
+      name.className = 'knowledge-row-name';
+      name.textContent = documentItem.name;
+      const meta = document.createElement('div');
+      meta.className = 'knowledge-row-meta';
+      meta.textContent = `${formatFileSize(documentItem.size_bytes)} · ${new Date(documentItem.created_at + 'Z').toLocaleDateString('es-EC')}`;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'text-button';
+      remove.dataset.knowledgeId = documentItem.id;
+      remove.textContent = 'Eliminar';
+      info.append(name, meta);
+      row.append(info, remove);
+      knowledgeList.append(row);
+    }
+  }
+
+  async function loadKnowledgeDocuments() {
+    const response = await apiFetch('/api/ai-documents');
+    currentKnowledgeDocuments = await parseApiResponse(response, 'No se pudieron cargar los documentos.');
+    renderKnowledgeDocuments();
+  }
+
+  function mimeTypeForFile(file) {
+    const extension = file.name.split('.').pop().toLowerCase();
+    return ({ txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown', csv: 'text/csv', json: 'application/json' })[extension] || file.type;
+  }
+
+  async function uploadKnowledgeDocument() {
+    const file = knowledgeFile.files[0];
+    if (!file) throw new Error('Selecciona un documento.');
+    if (file.size > 100_000) throw new Error('Cada documento puede pesar como máximo 100 KB.');
+    const response = await apiFetch('/api/ai-documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: file.name, mimeType: mimeTypeForFile(file), content: await file.text() }),
+    });
+    await parseApiResponse(response, 'No se pudo subir el documento.');
+    knowledgeFile.value = '';
+    await loadKnowledgeDocuments();
+  }
+
+  async function removeKnowledgeDocument(id) {
+    const response = await apiFetch(`/api/ai-documents/${id}`, { method: 'DELETE' });
+    await parseApiResponse(response, 'No se pudo eliminar el documento.');
+    await loadKnowledgeDocuments();
   }
 
   function readServicesForm() {
@@ -1443,7 +1542,9 @@
     if (view === 'ai-settings') {
       if (!currentSettings) await loadSettings();
       aiModeMessage.textContent = '';
+      renderSettingsForm(currentSettings);
       renderAiMode();
+      await loadKnowledgeDocuments();
     }
   }
 
@@ -1595,9 +1696,28 @@
     aiModeMessage.textContent = 'Guardando...';
     try {
       const mode = new FormData(aiModeForm).get('aiMode');
-      await saveSettings({ ...currentSettings, aiMode: mode });
+      await saveSettings({ ...currentSettings, aiMode: mode, businessProfile: readBusinessProfileForm() });
       renderAiMode();
-      aiModeMessage.textContent = 'Modo actualizado.';
+      aiModeMessage.textContent = 'Configuración de IA actualizada.';
+    } catch (error) {
+      aiModeMessage.textContent = error.message;
+    }
+  });
+  uploadKnowledge.addEventListener('click', async () => {
+    aiModeMessage.textContent = 'Subiendo documento...';
+    try {
+      await uploadKnowledgeDocument();
+      aiModeMessage.textContent = 'Documento disponible para el bot.';
+    } catch (error) {
+      aiModeMessage.textContent = error.message;
+    }
+  });
+  knowledgeList.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-knowledge-id]');
+    if (!button || !window.confirm('¿Eliminar este documento de referencia?')) return;
+    try {
+      await removeKnowledgeDocument(Number(button.dataset.knowledgeId));
+      aiModeMessage.textContent = 'Documento eliminado.';
     } catch (error) {
       aiModeMessage.textContent = error.message;
     }

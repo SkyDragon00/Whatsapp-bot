@@ -9,6 +9,7 @@ import { logError } from '../utils/logging.js';
 import { jsonResponse } from '../utils/responses.js';
 import { handleAppointmentsApi } from './appointments.js';
 import { handleExpensesApi } from './expenses.js';
+import { handleKnowledgeApi } from './knowledge.js';
 import { handleServicesApi } from './services.js';
 import { handleSettingsApi } from './settings.js';
 
@@ -22,6 +23,7 @@ function safeApiError(error) {
 	if (error instanceof AppointmentConflictError) return jsonResponse({ ok: false, error: error.message, code: error.code }, 409);
 	if (error instanceof AppointmentOwnershipError) return jsonResponse({ ok: false, error: error.message, code: error.code }, 403);
 	if (error instanceof AppointmentNotFoundError) return jsonResponse({ ok: false, error: error.message, code: error.code }, 404);
+	if (error?.status === 404) return jsonResponse({ ok: false, error: error.message }, 404);
 	return null;
 }
 
@@ -31,6 +33,9 @@ async function dispatchApi(request, env, url) {
 		response = await handleAppointmentsApi(request, env, url);
 	}
 	else if (url.pathname === '/api/settings') response = await handleSettingsApi(request, env);
+	else if (url.pathname === '/api/ai-documents' || url.pathname.startsWith('/api/ai-documents/')) {
+		response = await handleKnowledgeApi(request, env, url);
+	}
 	else if (url.pathname === '/api/expenses' || url.pathname.startsWith('/api/expenses/')) {
 		response = await handleExpensesApi(request, env, url);
 	}

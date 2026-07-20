@@ -35,6 +35,7 @@ describe.sequential('API administrativa', () => {
 	beforeEach(async () => {
 		await env.DB.batch([
 			env.DB.prepare('DELETE FROM appointments'),
+			env.DB.prepare('DELETE FROM ai_knowledge_documents'),
 			env.DB.prepare('DELETE FROM expenses'),
 			env.DB.prepare('DELETE FROM services'),
 			env.DB.prepare('DELETE FROM settings'),
@@ -64,6 +65,41 @@ describe.sequential('API administrativa', () => {
 		});
 		expect(updateResponse.status).toBe(200);
 		expect(await updateResponse.json()).toMatchObject({ slotIntervalMinutes: 30, closedDates: ['2026-12-25'] });
+	});
+
+	it('administra documentos de referencia para la IA', async () => {
+		const createResponse = await SELF.fetch(`${LOCAL_API}/ai-documents`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				name: 'preguntas-frecuentes.md',
+				mimeType: 'text/markdown',
+				content: 'La garantia tiene una vigencia de 30 dias.',
+			}),
+		});
+		expect(createResponse.status).toBe(201);
+		const created = await createResponse.json();
+		expect(created).toMatchObject({ name: 'preguntas-frecuentes.md', mime_type: 'text/markdown' });
+
+		const listResponse = await SELF.fetch(`${LOCAL_API}/ai-documents`);
+		expect(await listResponse.json()).toEqual([expect.objectContaining({ id: created.id, size_bytes: expect.any(Number) })]);
+
+		const deleteResponse = await SELF.fetch(`${LOCAL_API}/ai-documents/${created.id}`, { method: 'DELETE' });
+		expect(deleteResponse.status).toBe(200);
+		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM ai_knowledge_documents').first('count')).toBe(0);
+	});
+
+	it('rechaza documentos vacios, no soportados o demasiado grandes', async () => {
+		for (const body of [
+			{ name: 'vacio.txt', mimeType: 'text/plain', content: '' },
+			{ name: 'manual.pdf', mimeType: 'application/pdf', content: 'datos' },
+			{ name: 'grande.txt', mimeType: 'text/plain', content: 'x'.repeat(100_001) },
+		]) {
+			const response = await SELF.fetch(`${LOCAL_API}/ai-documents`, {
+				method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+			});
+			expect(response.status).toBe(400);
+		}
 	});
 
 	it('lista, crea y actualiza servicios con precio decimal', async () => {

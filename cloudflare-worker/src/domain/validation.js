@@ -143,6 +143,7 @@ export function normalizeBusinessProfile(input = DEFAULT_BUSINESS_SETTINGS.busin
 		value,
 		new Set([
 			'businessName',
+			'communicationStyle',
 			'preferredTone',
 			'greeting',
 			'address',
@@ -161,8 +162,13 @@ export function normalizeBusinessProfile(input = DEFAULT_BUSINESS_SETTINGS.busin
 	const acceptedPaymentMethods = [
 		...new Set(rawPaymentMethods.map((method) => requireString(method, 'Cada método de pago', { max: 50 }))),
 	];
+	const communicationStyle = value.communicationStyle ?? DEFAULT_BUSINESS_SETTINGS.businessProfile.communicationStyle;
+	if (!['formal', 'semiformal', 'friend'].includes(communicationStyle)) {
+		throw new ValidationError('El estilo de comunicación debe ser formal, semiformal o amigo.');
+	}
 	return {
 		businessName: requireString(value.businessName, 'El nombre comercial', { max: 120, optional: true }),
+		communicationStyle,
 		preferredTone: requireString(value.preferredTone, 'El tono preferido', { max: 120, optional: true }),
 		greeting: requireString(value.greeting, 'El saludo', { max: 300, optional: true }),
 		address: requireString(value.address, 'La dirección', { max: 300, optional: true }),
