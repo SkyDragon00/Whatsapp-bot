@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS customers (
 	first_name TEXT NOT NULL,
 	last_name TEXT NOT NULL,
 	full_name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+	cedula_ruc TEXT,
+	address TEXT,
+	phone TEXT,
 	telegram_user_id TEXT,
 	telegram_chat_id TEXT,
 	telegram_username TEXT,
@@ -67,6 +70,7 @@ CREATE TABLE IF NOT EXISTS expenses (
 
 CREATE TABLE IF NOT EXISTS payments (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	appointment_id INTEGER REFERENCES appointments(id),
 	payment_date TEXT NOT NULL CHECK (payment_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
 	customer_name TEXT NOT NULL,
 	amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
@@ -108,6 +112,7 @@ CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category COLLATE NO
 CREATE UNIQUE INDEX IF NOT EXISTS idx_expenses_source_pending_id
 	ON expenses(source_pending_id) WHERE source_pending_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_payments_appointment ON payments(appointment_id, payment_date, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_source_update ON payments(source_update_id)
 WHERE source_update_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_ai_knowledge_documents_created

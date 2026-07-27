@@ -9,6 +9,7 @@ import { logError } from '../utils/logging.js';
 import { jsonResponse } from '../utils/responses.js';
 import { handleAppointmentsApi } from './appointments.js';
 import { handleCustomersApi } from './customers.js';
+import { handleDashboardApi } from './dashboard.js';
 import { handleExpensesApi } from './expenses.js';
 import { handleKnowledgeApi } from './knowledge.js';
 import { handleServicesApi } from './services.js';
@@ -46,6 +47,7 @@ async function dispatchApi(request, env, url) {
 	else if (url.pathname === '/api/customers' || url.pathname.startsWith('/api/customers/')) {
 		response = await handleCustomersApi(request, env, url);
 	}
+	else if (url.pathname === '/api/dashboard') response = await handleDashboardApi(request, env, url);
 	return response ?? jsonResponse({ ok: false, error: 'Ruta administrativa no encontrada.' }, 404);
 }
 

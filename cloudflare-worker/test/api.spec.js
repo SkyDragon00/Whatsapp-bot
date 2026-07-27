@@ -27,6 +27,28 @@ function settings(overrides = {}) {
 	};
 }
 
+function textPdfBase64(text) {
+	const stream = `BT /F1 12 Tf 72 720 Td (${text}) Tj ET`;
+	const objects = [
+		'<< /Type /Catalog /Pages 2 0 R >>',
+		'<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+		'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+		'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+		`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+	];
+	let pdf = '%PDF-1.4\n';
+	const offsets = [0];
+	objects.forEach((object, index) => {
+		offsets.push(pdf.length);
+		pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+	});
+	const xrefOffset = pdf.length;
+	pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+	pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+	pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+	return btoa(pdf);
+}
+
 describe.sequential('API administrativa', () => {
 	beforeAll(async () => {
 		await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
@@ -34,6 +56,7 @@ describe.sequential('API administrativa', () => {
 
 	beforeEach(async () => {
 		await env.DB.batch([
+			env.DB.prepare('DELETE FROM payments'),
 			env.DB.prepare('DELETE FROM appointments'),
 			env.DB.prepare('DELETE FROM customers'),
 			env.DB.prepare('DELETE FROM ai_knowledge_documents'),
@@ -90,10 +113,29 @@ describe.sequential('API administrativa', () => {
 		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM ai_knowledge_documents').first('count')).toBe(0);
 	});
 
-	it('rechaza documentos vacios, no soportados o demasiado grandes', async () => {
+	it('extrae y guarda el texto de documentos PDF', async () => {
+		const response = await SELF.fetch(`${LOCAL_API}/ai-documents`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				name: 'manual.pdf',
+				mimeType: 'application/pdf',
+				content: textPdfBase64('Garantia PDF de 90 dias'),
+			}),
+		});
+		expect(response.status).toBe(201);
+		const created = await response.json();
+		expect(created).toMatchObject({ name: 'manual.pdf', mime_type: 'application/pdf' });
+		const stored = await env.DB.prepare('SELECT content FROM ai_knowledge_documents WHERE id = ?1').bind(created.id).first();
+		expect(stored.content).toContain('Garantia PDF de 90 dias');
+		await SELF.fetch(`${LOCAL_API}/ai-documents/${created.id}`, { method: 'DELETE' });
+	});
+
+	it('rechaza documentos vacios, no soportados, PDF invalidos o demasiado grandes', async () => {
 		for (const body of [
 			{ name: 'vacio.txt', mimeType: 'text/plain', content: '' },
-			{ name: 'manual.pdf', mimeType: 'application/pdf', content: 'datos' },
+			{ name: 'manual.exe', mimeType: 'application/octet-stream', content: 'datos' },
+			{ name: 'manual.pdf', mimeType: 'application/pdf', content: btoa('no es un PDF') },
 			{ name: 'grande.txt', mimeType: 'text/plain', content: 'x'.repeat(100_001) },
 		]) {
 			const response = await SELF.fetch(`${LOCAL_API}/ai-documents`, {
@@ -192,6 +234,49 @@ describe.sequential('API administrativa', () => {
 		}
 	});
 
+	it('resume ingresos, gastos, servicios y clientes con pagos pendientes', async () => {
+		const appointment = await env.DB.prepare(
+			`INSERT INTO appointments (
+				telegram_user_id, telegram_chat_id, patient_name, service, service_id, service_name,
+				date_text, date_iso, start_at, end_at, status, created_at, customer_id
+			 ) VALUES ('100', '100', 'Ana Pérez', ?1, ?2, ?1, '2026-07-15 10:00',
+			 '2026-07-15T15:00:00.000Z', '2026-07-15T15:00:00.000Z', '2026-07-15T15:45:00.000Z',
+			 'completed', CURRENT_TIMESTAMP, NULL) RETURNING id`,
+		).bind(service.name, service.id).first();
+		await env.DB.batch([
+			env.DB.prepare(
+				`INSERT INTO payments (
+					appointment_id, payment_date, customer_name, amount_cents, payment_method,
+					telegram_user_id, telegram_chat_id
+				 ) VALUES (?1, '2026-07-15', 'Ana Pérez', 500, 'Efectivo', '100', '100')`,
+			).bind(appointment.id),
+			env.DB.prepare(
+				`INSERT INTO expenses (
+					expense_date, description, category, amount_cents, payment_method
+				 ) VALUES ('2026-07-16', 'Insumos', 'Insumos', 300, 'Efectivo')`,
+			),
+		]);
+
+		const response = await SELF.fetch(`${LOCAL_API}/dashboard?from=2026-07-01&to=2026-07-31`);
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			summary: {
+				income_cents: 500,
+				expenses_cents: 300,
+				profit_cents: 200,
+				outstanding_cents: 750,
+				services_count: 1,
+				unpaid_people: 1,
+			},
+			service_breakdown: [expect.objectContaining({ service_name: 'Corte clasico', appointments: 1 })],
+			daily_activity: [
+				{ date: '2026-07-15', income_cents: 500, expenses_cents: 0 },
+				{ date: '2026-07-16', income_cents: 0, expenses_cents: 300 },
+			],
+			unpaid: [expect.objectContaining({ customer_name: 'Ana Pérez', outstanding_cents: 750 })],
+		});
+	});
+
 	it('mantiene los aliases que consume el calendario heredado', async () => {
 		await createAppointment(
 			env.DB,
@@ -222,13 +307,46 @@ describe.sequential('API administrativa', () => {
 		]);
 	});
 
+	it('registra abonos por cita y calcula sin pagar, parcial y pagado', async () => {
+		const appointment = await createAppointment(env.DB, {
+			telegram_user_id: '7101', telegram_chat_id: '7201', customer_name: 'Cliente Pagos',
+			service_id: service.id, start_datetime: '2026-07-20T14:00:00.000Z', source_update_id: 'appointment-payment',
+		}, { now: new Date('2026-07-14T00:00:00.000Z') });
+
+		let appointments = await (await SELF.fetch(`${LOCAL_API}/appointments`)).json();
+		expect(appointments[0]).toMatchObject({ payment_status: 'unpaid', price_cents: 1250, paid_cents: 0 });
+
+		const partialResponse = await SELF.fetch(`${LOCAL_API}/appointments/${appointment.id}/payment`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ payment_date: '2026-07-20', amount: 5, payment_method: 'Efectivo' }),
+		});
+		expect(partialResponse.status).toBe(201);
+		expect(await partialResponse.json()).toMatchObject({ payment_status: 'partial', paid_cents: 500 });
+
+		await SELF.fetch(`${LOCAL_API}/appointments/${appointment.id}/payment`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ payment_date: '2026-07-20', amount: 7.5, payment_method: 'Transferencia' }),
+		});
+		appointments = await (await SELF.fetch(`${LOCAL_API}/appointments`)).json();
+		expect(appointments[0]).toMatchObject({ payment_status: 'paid', paid_cents: 1250 });
+
+		const customer = await (await SELF.fetch(`${LOCAL_API}/customers/${appointment.customer_id}`)).json();
+		expect(customer.appointments[0]).toMatchObject({ price_cents: 1250, paid_cents: 1250 });
+	});
+
 	it('crea clientes manualmente y conserva el historial creado desde Telegram', async () => {
 		const manualResponse = await SELF.fetch(`${LOCAL_API}/customers`, {
 			method: 'POST', headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ first_name: 'Ana María', last_name: 'Pérez López' }),
+			body: JSON.stringify({
+				first_name: 'Ana María', last_name: 'Pérez López',
+				cedula_ruc: '1712345678', address: 'Av. Principal 123', phone: '0991234567',
+			}),
 		});
 		expect(manualResponse.status).toBe(201);
-		expect(await manualResponse.json()).toMatchObject({ full_name: 'Ana María Pérez López' });
+		expect(await manualResponse.json()).toMatchObject({
+			full_name: 'Ana María Pérez López',
+			cedula_ruc: '1712345678', address: 'Av. Principal 123', phone: '0991234567',
+		});
 
 		const appointment = await createAppointment(env.DB, {
 			telegram_user_id: '3001', telegram_chat_id: '4001', telegram_username: 'ana',
@@ -256,10 +374,16 @@ describe.sequential('API administrativa', () => {
 
 		const updateResponse = await SELF.fetch(`${LOCAL_API}/customers/${appointment.customer_id}`, {
 			method: 'PUT', headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ first_name: 'Roberto', last_name: 'Esponja' }),
+			body: JSON.stringify({
+				first_name: 'Roberto', last_name: 'Esponja',
+				cedula_ruc: '0999999999001', address: 'Fondo de Bikini', phone: '0987654321',
+			}),
 		});
 		expect(updateResponse.status).toBe(200);
-		expect(await updateResponse.json()).toMatchObject({ full_name: 'Roberto Esponja' });
+		expect(await updateResponse.json()).toMatchObject({
+			full_name: 'Roberto Esponja', cedula_ruc: '0999999999001',
+			address: 'Fondo de Bikini', phone: '0987654321',
+		});
 		expect(await env.DB.prepare('SELECT patient_name FROM appointments WHERE id = ?1').bind(appointment.id).first('patient_name')).toBe('Roberto Esponja');
 
 		const deleteResponse = await SELF.fetch(`${LOCAL_API}/customers/${appointment.customer_id}`, { method: 'DELETE' });
@@ -277,7 +401,7 @@ describe.sequential('API administrativa', () => {
 				telegram_chat_id: '2001',
 				customer_name: 'Cliente Admin',
 				service_id: service.id,
-				start_datetime: '2026-07-20T14:00:00.000Z',
+				start_datetime: '2026-08-03T14:00:00.000Z',
 				source_update_id: 'admin-actions',
 			},
 			{ now: new Date('2026-07-14T00:00:00.000Z') },
@@ -286,21 +410,23 @@ describe.sequential('API administrativa', () => {
 		const rescheduledResponse = await SELF.fetch(`${LOCAL_API}/appointments/${created.id}/reschedule`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ start_at: '2026-07-20T15:00:00.000Z' }),
+			body: JSON.stringify({ start_at: '2026-08-03T15:00:00.000Z' }),
+		});
+		const rescheduledBody = await rescheduledResponse.json();
+		expect(rescheduledBody).toMatchObject({
+			start_at: '2026-08-03T15:00:00.000Z',
+			end_at: '2026-08-03T15:45:00.000Z',
 		});
 		expect(rescheduledResponse.status).toBe(200);
-		expect(await rescheduledResponse.json()).toMatchObject({
-			start_at: '2026-07-20T15:00:00.000Z',
-			end_at: '2026-07-20T15:45:00.000Z',
-		});
 
 		const cancelResponse = await SELF.fetch(`${LOCAL_API}/appointments/${created.id}/cancel`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: '{}',
 		});
+		const cancelBody = await cancelResponse.json();
+		expect(cancelBody).toMatchObject({ status: 'cancelled' });
 		expect(cancelResponse.status).toBe(200);
-		expect(await cancelResponse.json()).toMatchObject({ status: 'cancelled' });
 		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM appointments').first('count')).toBe(1);
 	});
 

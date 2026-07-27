@@ -68,18 +68,34 @@ export const TOOL_DECLARATIONS = [
 		},
 	},
 	{
-		name: 'register_payment',
-		description: 'Registra un pago recibido de un cliente. Esta operación solo está autorizada cuando la IA está en modo dueño.',
+		name: 'find_customer_appointments',
+		description: 'Busca las citas de un cliente por nombre para que el dueño identifique el servicio específico al que corresponde un pago.',
 		parametersJsonSchema: {
 			type: 'object',
 			properties: {
+				customer_name: { type: 'string', description: 'Nombre completo o parcial del cliente.' },
+			},
+			required: ['customer_name'],
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'register_payment',
+		description: 'Registra un pago para una cita y servicio específicos. Solo está autorizada en modo dueño.',
+		parametersJsonSchema: {
+			type: 'object',
+			properties: {
+				appointment_id: { type: 'integer', description: 'ID de la cita elegida mediante find_customer_appointments.' },
 				payment_date: { type: 'string', description: 'Fecha local del pago en formato YYYY-MM-DD.' },
-				customer_name: { type: 'string', description: 'Nombre del cliente que realizó el pago.' },
 				amount: { type: 'number', description: 'Monto pagado en la moneda del negocio, con máximo dos decimales.' },
 				payment_method: { type: 'string', description: 'Método de pago, por ejemplo efectivo o transferencia.' },
+				billing_type: { type: 'string', enum: ['consumer_final', 'customer_data'], description: 'Tipo de facturación.' },
+				cedula_ruc: { type: 'string', description: 'Cédula o RUC, obligatorio al facturar con datos.' },
+				address: { type: 'string', description: 'Dirección, obligatoria al facturar con datos.' },
+				phone: { type: 'string', description: 'Teléfono, obligatorio al facturar con datos.' },
 				notes: { type: 'string', description: 'Detalle o concepto opcional del pago.' },
 			},
-			required: ['payment_date', 'customer_name', 'amount', 'payment_method'],
+			required: ['appointment_id', 'payment_date', 'amount', 'payment_method', 'billing_type'],
 			additionalProperties: false,
 		},
 	},
@@ -90,5 +106,5 @@ export const ALLOWED_TOOL_NAMES = new Set(TOOL_DECLARATIONS.map((tool) => tool.n
 export function toolDeclarationsForMode(aiMode) {
 	return aiMode === 'owner'
 		? TOOL_DECLARATIONS
-		: TOOL_DECLARATIONS.filter((tool) => tool.name !== 'register_payment');
+		: TOOL_DECLARATIONS.filter((tool) => !['find_customer_appointments', 'register_payment'].includes(tool.name));
 }

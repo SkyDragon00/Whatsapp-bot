@@ -1,9 +1,11 @@
 import { ValidationError } from '../domain/errors.js';
+import { extractText, getDocumentProxy } from 'unpdf';
 
 export const MAX_KNOWLEDGE_DOCUMENT_BYTES = 100_000;
 export const MAX_KNOWLEDGE_TOTAL_BYTES = 500_000;
+export const MAX_PDF_SOURCE_BYTES = 2_000_000;
 
-const ALLOWED_MIME_TYPES = new Set(['text/plain', 'text/markdown', 'text/csv', 'application/json']);
+const ALLOWED_MIME_TYPES = new Set(['text/plain', 'text/markdown', 'text/csv', 'application/json', 'application/pdf']);
 
 function isMissingKnowledgeTable(error) {
 	return typeof error?.message === 'string'
@@ -41,16 +43,43 @@ async function withKnowledgeSchema(db, operation) {
 	}
 }
 
-function normalizeDocument(input) {
+function decodePdfBase64(value) {
+	if (typeof value !== 'string' || !value || value.length > Math.ceil(MAX_PDF_SOURCE_BYTES / 3) * 4 + 4) {
+		throw new ValidationError('El PDF no es valido o supera el maximo de 2 MB.');
+	}
+	try {
+		const binary = atob(value);
+		if (!binary || binary.length > MAX_PDF_SOURCE_BYTES) throw new Error('PDF_SIZE');
+		const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+		if (String.fromCharCode(...bytes.slice(0, 5)) !== '%PDF-') throw new Error('PDF_SIGNATURE');
+		return bytes;
+	} catch {
+		throw new ValidationError('El PDF no es valido o supera el maximo de 2 MB.');
+	}
+}
+
+async function extractPdfContent(base64) {
+	const bytes = decodePdfBase64(base64);
+	try {
+		const pdf = await getDocumentProxy(bytes);
+		const { text } = await extractText(pdf, { mergePages: true });
+		return text;
+	} catch {
+		throw new ValidationError('No se pudo leer el PDF. Verifica que no este danado o protegido con contrasena.');
+	}
+}
+
+async function normalizeDocument(input) {
 	if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ValidationError('El documento no es valido.');
 	const name = typeof input.name === 'string' ? input.name.trim() : '';
 	const mimeType = typeof input.mimeType === 'string' ? input.mimeType.trim().toLowerCase() : '';
-	const content = typeof input.content === 'string' ? input.content.replace(/\0/g, '').trim() : '';
-	const sizeBytes = new TextEncoder().encode(content).byteLength;
 	if (!name || name.length > 180) throw new ValidationError('El nombre del documento no es valido.');
-	if (!ALLOWED_MIME_TYPES.has(mimeType)) throw new ValidationError('Solo se aceptan archivos TXT, Markdown, CSV o JSON.');
+	if (!ALLOWED_MIME_TYPES.has(mimeType)) throw new ValidationError('Solo se aceptan archivos PDF, TXT, Markdown, CSV o JSON.');
+	const rawContent = mimeType === 'application/pdf' ? await extractPdfContent(input.content) : input.content;
+	const content = typeof rawContent === 'string' ? rawContent.replace(/\0/g, '').trim() : '';
+	const sizeBytes = new TextEncoder().encode(content).byteLength;
 	if (!content) throw new ValidationError('El documento esta vacio.');
-	if (sizeBytes > MAX_KNOWLEDGE_DOCUMENT_BYTES) throw new ValidationError('Cada documento puede pesar como maximo 100 KB.');
+	if (sizeBytes > MAX_KNOWLEDGE_DOCUMENT_BYTES) throw new ValidationError('El texto extraido de cada documento puede pesar como maximo 100 KB.');
 	return { name, mimeType, content, sizeBytes };
 }
 
@@ -70,7 +99,7 @@ export async function getKnowledgeContext(db) {
 }
 
 export async function createKnowledgeDocument(db, input) {
-	const document = normalizeDocument(input);
+	const document = await normalizeDocument(input);
 	const currentBytes = await withKnowledgeSchema(db, () => db
 		.prepare('SELECT COALESCE(SUM(size_bytes), 0) AS total FROM ai_knowledge_documents')
 		.first('total'));

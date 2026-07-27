@@ -28,4 +28,14 @@ describe('prompt del asistente', () => {
 		expect(prompt).toContain(label);
 		expect(prompt).toContain(instruction);
 	});
+
+	it('explica las reglas fiscales de pagos en modo dueño', () => {
+		const prompt = buildSystemPrompt({
+			settings: { ...DEFAULT_BUSINESS_SETTINGS, aiMode: 'owner' },
+		});
+		expect(prompt).toContain('find_customer_appointments');
+		expect(prompt).toContain('RUC 9999999999999');
+		expect(prompt).toContain('mayor de $50');
+		expect(prompt).toContain('cédula/RUC, dirección y teléfono');
+	});
 });

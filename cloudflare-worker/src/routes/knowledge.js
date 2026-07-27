@@ -6,7 +6,7 @@ export async function handleKnowledgeApi(request, env, url) {
 	if (url.pathname === '/api/ai-documents') {
 		if (request.method === 'GET') return jsonResponse(await listKnowledgeDocuments(env.DB));
 		if (request.method === 'POST') {
-			const input = await readJsonWithLimit(request, 250_000);
+			const input = await readJsonWithLimit(request, 2_700_000);
 			return jsonResponse(await createKnowledgeDocument(env.DB, input), 201);
 		}
 	}

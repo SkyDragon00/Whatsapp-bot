@@ -6,11 +6,12 @@ import { requirePositiveInteger, requireString } from '../domain/validation.js';
 import {
 	cancelAppointment,
 	createAppointment,
+	findAppointmentsByCustomerName,
 	getCustomerAppointments,
 	listAppointmentsInRange,
 } from '../repositories/appointments-repository.js';
 import { getBusinessSettings } from '../repositories/settings-repository.js';
-import { createPayment } from '../repositories/payments-repository.js';
+import { createOwnerChatPayment } from '../repositories/payments-repository.js';
 import { listServices, resolveService } from '../repositories/services-repository.js';
 import { logError } from '../utils/logging.js';
 import { ALLOWED_TOOL_NAMES } from './tool-definitions.js';
@@ -172,12 +173,12 @@ async function cancelAppointmentTool(rawArgs, context) {
 
 async function registerPaymentTool(rawArgs, context) {
 	const args = requireArguments(rawArgs);
-	assertAllowedKeys(args, ['payment_date', 'customer_name', 'amount', 'payment_method', 'notes']);
+	assertAllowedKeys(args, ['appointment_id', 'payment_date', 'amount', 'payment_method', 'billing_type', 'cedula_ruc', 'address', 'phone', 'notes']);
 	const settings = await getBusinessSettings(context.env.DB);
 	if (settings.aiMode !== 'owner') {
 		throw new ValidationError('Registrar pagos solo está disponible en modo dueño.');
 	}
-	const payment = await createPayment(context.env.DB, {
+	const payment = await createOwnerChatPayment(context.env.DB, {
 		...args,
 		telegram_user_id: context.telegram.userId,
 		telegram_chat_id: context.telegram.chatId,
@@ -189,8 +190,15 @@ async function registerPaymentTool(rawArgs, context) {
 			id: payment.id,
 			payment_date: payment.payment_date,
 			customer_name: payment.customer_name,
+			appointment_id: payment.appointment_id,
+			service_id: payment.service_id,
+			service_name: payment.service_name,
 			amount: payment.amount_cents / 100,
 			payment_method: payment.payment_method,
+			billing_type: payment.billing_type,
+			cedula_ruc: payment.cedula_ruc,
+			address: payment.address,
+			phone: payment.phone,
 			notes: payment.notes,
 		},
 	};
@@ -221,6 +229,13 @@ export async function executeTool(name, rawArgs, context) {
 		case 'get_customer_appointments': {
 			assertNoArguments(args);
 			const appointments = await getCustomerAppointments(context.env.DB, context.telegram.userId, { limit: 20 });
+			return { appointments: appointments.map(serializeAppointment) };
+		}
+		case 'find_customer_appointments': {
+			assertAllowedKeys(args, ['customer_name']);
+			const settings = await getBusinessSettings(context.env.DB);
+			if (settings.aiMode !== 'owner') throw new ValidationError('Buscar citas de clientes solo está disponible en modo dueño.');
+			const appointments = await findAppointmentsByCustomerName(context.env.DB, args.customer_name);
 			return { appointments: appointments.map(serializeAppointment) };
 		}
 		case 'cancel_appointment':

@@ -23,6 +23,7 @@ describe.sequential('herramientas controladas del backend', () => {
 		await env.DB.batch([
 			env.DB.prepare('DELETE FROM appointments'),
 			env.DB.prepare('DELETE FROM payments'),
+			env.DB.prepare('DELETE FROM customers'),
 			env.DB.prepare('DELETE FROM expenses'),
 			env.DB.prepare('DELETE FROM services'),
 			env.DB.prepare('DELETE FROM settings'),
@@ -168,10 +169,11 @@ describe.sequential('herramientas controladas del backend', () => {
 
 	it('impide registrar pagos en modo cliente', async () => {
 		const result = await executeToolSafely('register_payment', {
+			appointment_id: 1,
 			payment_date: '2026-07-14',
-			customer_name: 'Cliente Uno',
 			amount: 25.5,
 			payment_method: 'Efectivo',
+			billing_type: 'consumer_final',
 		}, context());
 
 		expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
@@ -181,20 +183,66 @@ describe.sequential('herramientas controladas del backend', () => {
 	it('registra pagos con trazabilidad de Telegram en modo dueño', async () => {
 		const current = await (await SELF.fetch('http://localhost/api/settings')).json();
 		await saveBusinessSettings(env.DB, { ...current, aiMode: 'owner' });
-		const result = await executeToolSafely('register_payment', {
-			payment_date: '2026-07-14',
+		const appointment = await executeToolSafely('create_appointment', {
 			customer_name: 'Cliente Dos',
+			service_id: service.id,
+			start_datetime: '2026-07-20T14:00:00.000Z',
+		}, context());
+		const found = await executeToolSafely('find_customer_appointments', { customer_name: 'Cliente Dos' }, context());
+		expect(found.data.appointments).toEqual([
+			expect.objectContaining({ id: appointment.data.appointment.id, service_id: service.id }),
+		]);
+		const result = await executeToolSafely('register_payment', {
+			appointment_id: appointment.data.appointment.id,
+			payment_date: '2026-07-14',
 			amount: 40,
 			payment_method: 'Transferencia',
+			billing_type: 'consumer_final',
 			notes: 'Abono',
 		}, context());
 
 		expect(result).toMatchObject({
 			ok: true,
-			data: { payment: { customer_name: 'Cliente Dos', amount: 40, payment_method: 'Transferencia' } },
+			data: { payment: {
+				customer_name: 'Cliente Dos', service_name: 'Servicio Fase 3',
+				amount: 40, payment_method: 'Transferencia', billing_type: 'consumer_final',
+				cedula_ruc: '9999999999999', address: 'Quito', phone: '029999999',
+			} },
 		});
 		const stored = await env.DB.prepare('SELECT * FROM payments WHERE id = ?1').bind(result.data.payment.id).first();
-		expect(stored).toMatchObject({ telegram_user_id: '7001', telegram_chat_id: '8001', source_update_id: 'telegram:update:phase3-test' });
+		expect(stored).toMatchObject({
+			appointment_id: appointment.data.appointment.id,
+			telegram_user_id: '7001', telegram_chat_id: '8001', source_update_id: 'telegram:update:phase3-test',
+		});
+		const customer = await env.DB.prepare('SELECT * FROM customers WHERE full_name = ?1').bind('Cliente Dos').first();
+		expect(customer).toMatchObject({ cedula_ruc: '9999999999999', address: 'Quito', phone: '029999999' });
 	});
 
+	it('exige datos del cliente para pagos mayores de 50 dólares y los guarda', async () => {
+		const current = await (await SELF.fetch('http://localhost/api/settings')).json();
+		await saveBusinessSettings(env.DB, { ...current, aiMode: 'owner' });
+		const appointment = await executeToolSafely('create_appointment', {
+			customer_name: 'Cliente Factura',
+			service_id: service.id,
+			start_datetime: '2026-07-20T14:00:00.000Z',
+		}, context());
+		const appointmentId = appointment.data.appointment.id;
+		const rejected = await executeToolSafely('register_payment', {
+			appointment_id: appointmentId, payment_date: '2026-07-14', amount: 50.01,
+			payment_method: 'Efectivo', billing_type: 'consumer_final',
+		}, context());
+		expect(rejected).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM payments').first('count')).toBe(0);
+
+		const accepted = await executeToolSafely('register_payment', {
+			appointment_id: appointmentId, payment_date: '2026-07-14', amount: 75,
+			payment_method: 'Transferencia', billing_type: 'customer_data',
+			cedula_ruc: '1712345678', address: 'Av. Siempre Viva 123', phone: '0991234567',
+		}, { ...context(), sourceUpdateId: 'telegram:update:with-data' });
+		expect(accepted.ok).toBe(true);
+		const customer = await env.DB.prepare('SELECT * FROM customers WHERE full_name = ?1').bind('Cliente Factura').first();
+		expect(customer).toMatchObject({
+			cedula_ruc: '1712345678', address: 'Av. Siempre Viva 123', phone: '0991234567',
+		});
+	});
 });

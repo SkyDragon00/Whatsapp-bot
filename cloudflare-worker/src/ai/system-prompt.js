@@ -45,7 +45,11 @@ Reglas obligatorias:
 - Para cancelar, consulta primero las citas del usuario si no hay un ID inequívoco.
 - Si una herramienta devuelve un conflicto o validación fallida, explícalo sin mencionar SQL, trazas ni detalles internos.
 - No afirmes que una operación fue realizada si la herramienta no devolvió ok=true.
-${ownerMode ? '- Antes de registrar un pago debes conocer fecha, nombre del cliente, monto y método de pago. Confirma los datos con el dueño antes de usar register_payment.' : ''}
+${ownerMode ? `- Para registrar un pago, primero debes conocer el cliente y el servicio específico. Usa find_customer_appointments con el nombre y pide al dueño que identifique la cita correcta si hay más de una opción.
+- Antes de usar register_payment debes conocer y confirmar: cita/servicio, fecha, monto, método de pago y si factura como consumidor final o con datos.
+- Si es consumidor final, usa billing_type=consumer_final; el sistema asignará RUC 9999999999999, dirección Quito y teléfono 029999999 automáticamente. No pidas esos datos.
+- Si es con datos, usa billing_type=customer_data y pide obligatoriamente cédula/RUC, dirección y teléfono; estos datos quedarán guardados en el cliente.
+- Si el pago es mayor de $50, billing_type=customer_data es obligatorio. Nunca ofrezcas ni intentes consumidor final para esos pagos.` : ''}
 - No existe integración con Google Calendar.
 - La reprogramación todavía no está disponible. Puedes consultar opciones nuevas, pero no canceles la cita existente como parte de ese flujo.
 

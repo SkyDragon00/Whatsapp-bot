@@ -19,13 +19,30 @@ export async function listAppointments(db, { includeCancelled = false, limit = 5
 	const statusFilter = includeCancelled ? '' : `WHERE status = '${ACTIVE_APPOINTMENT_STATUS}'`;
 	const result = await db
 		.prepare(
-			`SELECT * FROM appointments
-			 ${statusFilter}
-			 ORDER BY start_at, id
+			`SELECT a.*, s.price_cents, COALESCE(SUM(p.amount_cents), 0) AS paid_cents
+			 FROM appointments a
+			 LEFT JOIN services s ON s.id = a.service_id
+			 LEFT JOIN payments p ON p.appointment_id = a.id
+			 ${statusFilter ? statusFilter.replace('status', 'a.status') : ''}
+			 GROUP BY a.id
+			 ORDER BY a.start_at, a.id
 			 LIMIT ?1`,
 		)
 		.bind(limit)
 		.all();
+	return result.results;
+}
+
+export async function findAppointmentsByCustomerName(db, customerName, { limit = 20 } = {}) {
+	const name = requireString(customerName, 'El nombre del cliente', { min: 2, max: 120 });
+	if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new ValidationError('El límite de citas no es válido.');
+	const result = await db.prepare(
+		`SELECT a.id, a.customer_id, a.patient_name, a.service_id, a.service_name, a.service,
+		        a.start_at, a.end_at, a.status, a.phone
+		 FROM appointments a
+		 WHERE a.patient_name LIKE ?1 COLLATE NOCASE
+		 ORDER BY a.start_at DESC, a.id DESC LIMIT ?2`,
+	).bind(`%${name}%`, limit).all();
 	return result.results;
 }
 
@@ -83,6 +100,7 @@ export async function createAppointment(db, input, { now = new Date() } = {}) {
 		telegram_user_id: appointment.telegram_user_id,
 		telegram_chat_id: appointment.telegram_chat_id,
 		telegram_username: appointment.telegram_username,
+		phone: appointment.phone,
 	}, { now });
 
 	const [service, settings] = await Promise.all([
