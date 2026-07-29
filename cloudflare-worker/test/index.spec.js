@@ -17,7 +17,8 @@ describe('Worker actual', () => {
 		expect(response.headers.get('content-type')).toContain('text/html');
 		expect(html).toContain('window.APPOINTMENTS_API_BASE_URL');
 		expect(html).toContain("'http://127.0.0.1:8787'");
-		expect(html).toContain('sessionStorage');
+		expect(html).toContain("credentials: 'include'");
+		expect(html).toContain('Registrar negocio');
 		expect(html).not.toContain('localhost:3000');
 	});
 });

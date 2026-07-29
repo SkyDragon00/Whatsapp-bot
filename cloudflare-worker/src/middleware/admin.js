@@ -1,4 +1,5 @@
 import { jsonResponse } from '../utils/responses.js';
+import { getSessionUser } from '../auth/sessions.js';
 
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
 const ADMIN_METHODS = 'GET, POST, PUT, DELETE, OPTIONS';
@@ -62,7 +63,9 @@ async function tokensMatch(received, expected) {
 }
 
 async function authorizeAdminRequest(request, env) {
-	if (isLocalHostname(new URL(request.url).hostname)) return { ok: true };
+	const sessionUser = await getSessionUser(request, env.DB);
+	if (sessionUser) return { ok: true, user: sessionUser };
+	if (isLocalHostname(new URL(request.url).hostname)) return { ok: true, user: null };
 	const expectedToken = typeof env.ADMIN_API_TOKEN === 'string' ? env.ADMIN_API_TOKEN.trim() : '';
 	if (!expectedToken) {
 		return {
@@ -88,7 +91,7 @@ async function authorizeAdminRequest(request, env) {
 }
 
 /** Protege y aplica CORS a todas las rutas administrativas. */
-export async function withAdminProtection(request, env, handler) {
+export async function withAdminProtection(request, env, handler, options = {}) {
 	const origin = request.headers.get('origin');
 	if (!isAllowedOrigin(origin, env, request.url)) {
 		return jsonResponse({ ok: false, error: 'Origen no permitido.', code: 'CORS_ORIGIN_DENIED' }, 403);
@@ -98,5 +101,8 @@ export async function withAdminProtection(request, env, handler) {
 
 	const authorization = await authorizeAdminRequest(request, env);
 	if (!authorization.ok) return withHeaders(authorization.response, headers);
-	return withHeaders(await handler(), headers);
+	if (options.role && authorization.user?.role !== options.role) {
+		return withHeaders(jsonResponse({ ok: false, error: 'No tienes permiso para acceder a esta página.', code: 'FORBIDDEN' }, 403), headers);
+	}
+	return withHeaders(await handler(authorization.user), headers);
 }

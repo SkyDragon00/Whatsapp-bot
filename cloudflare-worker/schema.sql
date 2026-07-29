@@ -93,6 +93,32 @@ CREATE TABLE IF NOT EXISTS ai_knowledge_documents (
 	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS companies (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+	status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS users (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	company_id INTEGER REFERENCES companies(id),
+	username TEXT NOT NULL COLLATE NOCASE UNIQUE,
+	password_hash TEXT NOT NULL,
+	password_salt TEXT NOT NULL,
+	password_iterations INTEGER NOT NULL,
+	role TEXT NOT NULL CHECK (role IN ('admin', 'super_admin')),
+	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	token_hash TEXT NOT NULL UNIQUE,
+	expires_at TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT OR IGNORE INTO settings (key, value)
 VALUES
 	('schedule', '{"appointmentDurationMinutes":60,"businessTimezone":"America/Guayaquil","slotIntervalMinutes":15,"minimumBookingNoticeMinutes":0,"maximumAdvanceBookingDays":31,"closedDates":[],"businessHours":[{"day":0,"enabled":false,"start":"09:00","end":"17:00"},{"day":1,"enabled":true,"start":"09:00","end":"17:00"},{"day":2,"enabled":true,"start":"09:00","end":"17:00"},{"day":3,"enabled":true,"start":"09:00","end":"17:00"},{"day":4,"enabled":true,"start":"09:00","end":"17:00"},{"day":5,"enabled":true,"start":"09:00","end":"17:00"},{"day":6,"enabled":false,"start":"09:00","end":"17:00"}]}'),
@@ -117,6 +143,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_source_update ON payments(source_
 WHERE source_update_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_ai_knowledge_documents_created
 	ON ai_knowledge_documents(created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
 
 CREATE TRIGGER IF NOT EXISTS appointments_validate_interval_insert
 BEFORE INSERT ON appointments

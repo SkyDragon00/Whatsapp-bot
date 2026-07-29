@@ -14,6 +14,8 @@ import { handleExpensesApi } from './expenses.js';
 import { handleKnowledgeApi } from './knowledge.js';
 import { handleServicesApi } from './services.js';
 import { handleSettingsApi } from './settings.js';
+import { handleAuthApi } from './auth.js';
+import { handleModeratorApi } from './moderator.js';
 
 function safeApiError(error) {
 	if (error instanceof ValidationError || error?.message === 'BODY_TOO_LARGE' || error instanceof SyntaxError) {
@@ -52,6 +54,15 @@ async function dispatchApi(request, env, url) {
 }
 
 export async function handleApiRequest(request, env, url) {
+	if (url.pathname.startsWith('/api/auth/')) return handleAuthApi(request, env, url);
+	if (url.pathname.startsWith('/api/moderator/')) {
+		return withAdminProtection(
+			request,
+			env,
+			async () => handleModeratorApi(request, env, url),
+			{ role: 'super_admin' },
+		);
+	}
 	return withAdminProtection(request, env, async () => {
 		try {
 			return await dispatchApi(request, env, url);
