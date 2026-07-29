@@ -12,6 +12,8 @@ import {
 } from '../repositories/appointments-repository.js';
 import { getBusinessSettings } from '../repositories/settings-repository.js';
 import { createOwnerChatPayment } from '../repositories/payments-repository.js';
+import { isTransfer } from '../domain/banking.js';
+import { getExpenseSummary, getFinancialSummary, getOutstandingBalances } from '../repositories/financial-repository.js';
 import { listServices, resolveService } from '../repositories/services-repository.js';
 import { logError } from '../utils/logging.js';
 import { ALLOWED_TOOL_NAMES } from './tool-definitions.js';
@@ -173,7 +175,7 @@ async function cancelAppointmentTool(rawArgs, context) {
 
 async function registerPaymentTool(rawArgs, context) {
 	const args = requireArguments(rawArgs);
-	assertAllowedKeys(args, ['appointment_id', 'payment_date', 'amount', 'payment_method', 'billing_type', 'cedula_ruc', 'address', 'phone', 'notes']);
+	assertAllowedKeys(args, ['appointment_id', 'payment_date', 'amount', 'payment_method', 'bank', 'billing_type', 'cedula_ruc', 'address', 'phone', 'notes']);
 	const settings = await getBusinessSettings(context.env.DB);
 	if (settings.aiMode !== 'owner') {
 		throw new ValidationError('Registrar pagos solo está disponible en modo dueño.');
@@ -185,6 +187,13 @@ async function registerPaymentTool(rawArgs, context) {
 		telegram_username: context.telegram.username,
 		source_update_id: context.sourceUpdateId,
 	}, { now: context.now });
+	if (isTransfer(payment.payment_method)) {
+		await context.env.CONVERSATIONS.put(
+			`pending-payment-receipt:${context.telegram.chatId}`,
+			JSON.stringify({ paymentId: payment.id }),
+			{ expirationTtl: 86_400 },
+		);
+	}
 	return {
 		payment: {
 			id: payment.id,
@@ -195,6 +204,8 @@ async function registerPaymentTool(rawArgs, context) {
 			service_name: payment.service_name,
 			amount: payment.amount_cents / 100,
 			payment_method: payment.payment_method,
+			bank: payment.bank,
+			awaiting_receipt: isTransfer(payment.payment_method),
 			billing_type: payment.billing_type,
 			cedula_ruc: payment.cedula_ruc,
 			address: payment.address,
@@ -237,6 +248,38 @@ export async function executeTool(name, rawArgs, context) {
 			if (settings.aiMode !== 'owner') throw new ValidationError('Buscar citas de clientes solo está disponible en modo dueño.');
 			const appointments = await findAppointmentsByCustomerName(context.env.DB, args.customer_name);
 			return { appointments: appointments.map(serializeAppointment) };
+		}
+		case 'get_outstanding_balances': {
+			assertAllowedKeys(args, ['customer_name']);
+			const settings = await getBusinessSettings(context.env.DB);
+			if (settings.aiMode !== 'owner') {
+				throw new ValidationError('Consultar deudas solo está disponible en modo dueño.');
+			}
+			return getOutstandingBalances(context.env.DB, { customerName: args.customer_name });
+		}
+		case 'get_expense_summary': {
+			assertAllowedKeys(args, ['date_from', 'date_to', 'category', 'search']);
+			const settings = await getBusinessSettings(context.env.DB);
+			if (settings.aiMode !== 'owner') {
+				throw new ValidationError('Consultar gastos solo está disponible en modo dueño.');
+			}
+			return getExpenseSummary(context.env.DB, {
+				dateFrom: args.date_from,
+				dateTo: args.date_to,
+				category: args.category,
+				search: args.search,
+			});
+		}
+		case 'get_financial_summary': {
+			assertAllowedKeys(args, ['date_from', 'date_to']);
+			const settings = await getBusinessSettings(context.env.DB);
+			if (settings.aiMode !== 'owner') {
+				throw new ValidationError('Consultar el resumen financiero solo está disponible en modo dueño.');
+			}
+			return getFinancialSummary(context.env.DB, {
+				dateFrom: args.date_from,
+				dateTo: args.date_to,
+			});
 		}
 		case 'cancel_appointment':
 			return cancelAppointmentTool(args, context);

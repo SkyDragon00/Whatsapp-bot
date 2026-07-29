@@ -1,5 +1,6 @@
 import { ValidationError } from '../domain/errors.js';
 import { requirePositiveInteger, requireString } from '../domain/validation.js';
+import { requireBankForPayment } from '../domain/banking.js';
 
 function requireExpenseDate(value) {
 	const normalized = requireString(value, 'La fecha del gasto', { max: 10 });
@@ -30,6 +31,7 @@ function validateExpenseInput(input) {
 		supplier: requireString(input.supplier, 'El proveedor', { max: 150, optional: true }),
 		amount_cents: amountCents,
 		payment_method: requireString(input.payment_method, 'El método de pago', { min: 2, max: 60 }),
+		bank: requireBankForPayment(input.payment_method, input.bank),
 		document_type: requireString(input.document_type, 'El tipo de comprobante', { max: 60, optional: true }),
 		document_number: requireString(input.document_number, 'El número de comprobante', { max: 100, optional: true }),
 		notes: requireString(input.notes, 'Las notas', { max: 1_000, optional: true }),
@@ -53,8 +55,8 @@ export async function createExpense(db, input, { now = new Date() } = {}) {
 		.prepare(
 			`INSERT INTO expenses (
 				expense_date, description, category, supplier, amount_cents,
-				payment_method, document_type, document_number, notes, created_at, updated_at
-			 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)
+				payment_method, bank, document_type, document_number, notes, created_at, updated_at
+			 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)
 			 RETURNING *`,
 		)
 		.bind(
@@ -64,12 +66,20 @@ export async function createExpense(db, input, { now = new Date() } = {}) {
 			expense.supplier,
 			expense.amount_cents,
 			expense.payment_method,
+			expense.bank,
 			expense.document_type,
 			expense.document_number,
 			expense.notes,
 			now.toISOString(),
 		)
 		.first();
+}
+
+export async function attachExpenseReceipt(db, expenseId, receipt) {
+	return db.prepare(
+		`UPDATE expenses SET receipt_key = ?2, receipt_name = ?3, receipt_mime_type = ?4, updated_at = ?5
+		 WHERE id = ?1 AND LOWER(TRIM(payment_method)) = 'transferencia' RETURNING *`,
+	).bind(expenseId, receipt.key, receipt.name, receipt.mimeType, new Date().toISOString()).first();
 }
 
 export async function deleteExpense(db, expenseId) {

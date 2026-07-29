@@ -11,6 +11,7 @@ import { handleAppointmentsApi } from './appointments.js';
 import { handleCustomersApi } from './customers.js';
 import { handleDashboardApi } from './dashboard.js';
 import { handleExpensesApi } from './expenses.js';
+import { handleIncomeApi } from './income.js';
 import { handleKnowledgeApi } from './knowledge.js';
 import { handleServicesApi } from './services.js';
 import { handleSettingsApi } from './settings.js';
@@ -43,6 +44,7 @@ async function dispatchApi(request, env, url) {
 	else if (url.pathname === '/api/expenses' || url.pathname.startsWith('/api/expenses/')) {
 		response = await handleExpensesApi(request, env, url);
 	}
+	else if (url.pathname === '/api/income') response = await handleIncomeApi(request, env, url);
 	else if (url.pathname === '/api/services' || url.pathname.startsWith('/api/services/')) {
 		response = await handleServicesApi(request, env, url);
 	}

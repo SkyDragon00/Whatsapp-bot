@@ -197,6 +197,7 @@ describe.sequential('herramientas controladas del backend', () => {
 			payment_date: '2026-07-14',
 			amount: 40,
 			payment_method: 'Transferencia',
+			bank: 'Pichincha',
 			billing_type: 'consumer_final',
 			notes: 'Abono',
 		}, context());
@@ -205,7 +206,7 @@ describe.sequential('herramientas controladas del backend', () => {
 			ok: true,
 			data: { payment: {
 				customer_name: 'Cliente Dos', service_name: 'Servicio Fase 3',
-				amount: 40, payment_method: 'Transferencia', billing_type: 'consumer_final',
+				amount: 40, payment_method: 'Transferencia', bank: 'Pichincha', billing_type: 'consumer_final',
 				cedula_ruc: '9999999999999', address: 'Quito', phone: '029999999',
 			} },
 		});
@@ -236,13 +237,152 @@ describe.sequential('herramientas controladas del backend', () => {
 
 		const accepted = await executeToolSafely('register_payment', {
 			appointment_id: appointmentId, payment_date: '2026-07-14', amount: 75,
-			payment_method: 'Transferencia', billing_type: 'customer_data',
+			payment_method: 'Transferencia', bank: 'Produbanco', billing_type: 'customer_data',
 			cedula_ruc: '1712345678', address: 'Av. Siempre Viva 123', phone: '0991234567',
 		}, { ...context(), sourceUpdateId: 'telegram:update:with-data' });
 		expect(accepted.ok).toBe(true);
 		const customer = await env.DB.prepare('SELECT * FROM customers WHERE full_name = ?1').bind('Cliente Factura').first();
 		expect(customer).toMatchObject({
 			cedula_ruc: '1712345678', address: 'Av. Siempre Viva 123', phone: '0991234567',
+		});
+	});
+
+	it('consulta todas las deudas y la deuda de un cliente específico en modo dueño', async () => {
+		const current = await (await SELF.fetch('http://localhost/api/settings')).json();
+		await saveBusinessSettings(env.DB, { ...current, aiMode: 'owner' });
+		const ana = await executeToolSafely('create_appointment', {
+			customer_name: 'Ana Pendiente',
+			service_id: service.id,
+			start_datetime: '2026-07-20T14:00:00.000Z',
+		}, { ...context(), sourceUpdateId: 'debt-ana' });
+		const luis = await executeToolSafely('create_appointment', {
+			customer_name: 'Luis Pendiente',
+			service_id: service.id,
+			start_datetime: '2026-07-21T14:00:00.000Z',
+		}, { ...context(), sourceUpdateId: 'debt-luis' });
+		await env.DB.prepare(
+			`INSERT INTO payments (
+				appointment_id, payment_date, customer_name, amount_cents, payment_method,
+				telegram_user_id, telegram_chat_id, created_at
+			 ) VALUES (?1, '2026-07-14', 'Ana Pendiente', 500, 'Efectivo', '7001', '8001', CURRENT_TIMESTAMP)`,
+		).bind(ana.data.appointment.id).run();
+
+		const all = await executeToolSafely('get_outstanding_balances', {}, context());
+		expect(all).toMatchObject({
+			ok: true,
+			data: {
+				people_count: 2,
+				total_outstanding_cents: 3500,
+				balances: [
+					expect.objectContaining({ customer_name: 'Luis Pendiente', outstanding_cents: 2000 }),
+					expect.objectContaining({ customer_name: 'Ana Pendiente', outstanding_cents: 1500 }),
+				],
+			},
+		});
+
+		const specific = await executeToolSafely('get_outstanding_balances', { customer_name: 'Ana' }, context());
+		expect(specific.data).toMatchObject({
+			people_count: 1,
+			total_outstanding_cents: 1500,
+			balances: [expect.objectContaining({
+				customer_name: 'Ana Pendiente',
+				appointments: [expect.objectContaining({
+					price_cents: 2000,
+					paid_cents: 500,
+					outstanding_cents: 1500,
+				})],
+			})],
+		});
+		expect(luis.ok).toBe(true);
+	});
+
+	it('resume gastos por período, categoría y búsqueda en modo dueño', async () => {
+		const current = await (await SELF.fetch('http://localhost/api/settings')).json();
+		await saveBusinessSettings(env.DB, { ...current, aiMode: 'owner' });
+		await env.DB.batch([
+			env.DB.prepare(
+				`INSERT INTO expenses (
+					expense_date, description, category, supplier, amount_cents, payment_method
+				 ) VALUES ('2026-07-02', 'Almuerzo del equipo', 'Alimentación', 'Cafetería', 1250, 'Efectivo')`,
+			),
+			env.DB.prepare(
+				`INSERT INTO expenses (
+					expense_date, description, category, supplier, amount_cents, payment_method
+				 ) VALUES ('2026-07-10', 'Compra de snacks', 'Alimentación', 'Mercado', 750, 'Efectivo')`,
+			),
+			env.DB.prepare(
+				`INSERT INTO expenses (
+					expense_date, description, category, supplier, amount_cents, payment_method
+				 ) VALUES ('2026-06-30', 'Taxi', 'Transporte', 'Cooperativa', 500, 'Efectivo')`,
+			),
+		]);
+
+		const month = await executeToolSafely('get_expense_summary', {
+			date_from: '2026-07-01',
+			date_to: '2026-07-31',
+		}, context());
+		expect(month).toMatchObject({
+			ok: true,
+			data: {
+				expense_count: 2,
+				total_cents: 2000,
+				first_date: '2026-07-02',
+				last_date: '2026-07-10',
+				by_category: [{ category: 'Alimentación', expense_count: 2, total_cents: 2000 }],
+			},
+		});
+
+		const food = await executeToolSafely('get_expense_summary', {
+			category: 'Alimentación',
+			search: 'snacks',
+		}, context());
+		expect(food.data).toMatchObject({
+			expense_count: 1,
+			total_cents: 750,
+			expenses: [expect.objectContaining({ description: 'Compra de snacks', amount_cents: 750 })],
+		});
+	});
+
+	it('compara ingresos cobrados, gastos y saldos de citas en modo dueño', async () => {
+		const current = await (await SELF.fetch('http://localhost/api/settings')).json();
+		await saveBusinessSettings(env.DB, { ...current, aiMode: 'owner' });
+		const appointment = await executeToolSafely('create_appointment', {
+			customer_name: 'Cliente Balance', service_id: service.id,
+			start_datetime: '2026-07-20T14:00:00.000Z',
+		}, context());
+		await env.DB.batch([
+			env.DB.prepare(
+				`INSERT INTO payments (
+					appointment_id, payment_date, customer_name, amount_cents, payment_method,
+					telegram_user_id, telegram_chat_id
+				 ) VALUES (?1, '2026-07-20', 'Cliente Balance', 800, 'Efectivo', '1001', '2001')`,
+			).bind(appointment.data.appointment.id),
+			env.DB.prepare(
+				`INSERT INTO expenses (
+					expense_date, description, category, amount_cents, payment_method
+				 ) VALUES ('2026-07-21', 'Insumos', 'Insumos', 300, 'Efectivo')`,
+			),
+		]);
+		const result = await executeToolSafely('get_financial_summary', {
+			date_from: '2026-07-01', date_to: '2026-07-31',
+		}, context());
+		expect(result).toMatchObject({
+			ok: true,
+			data: {
+				income_cents: 800,
+				expenses_cents: 300,
+				net_cents: 500,
+				payment_count: 1,
+				expense_count: 1,
+				appointments: {
+					count: 1,
+					expected_cents: 2000,
+					outstanding_cents: 1200,
+					partial_count: 1,
+					paid_count: 0,
+					unpaid_count: 0,
+				},
+			},
 		});
 	});
 });

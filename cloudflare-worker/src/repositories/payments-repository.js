@@ -1,5 +1,6 @@
 import { ValidationError } from '../domain/errors.js';
 import { requirePositiveInteger, requireString } from '../domain/validation.js';
+import { requireBankForPayment } from '../domain/banking.js';
 
 function requirePaymentDate(value) {
 	const normalized = requireString(value, 'La fecha del pago', { max: 10 });
@@ -20,15 +21,16 @@ export async function createPayment(db, input, { now = new Date() } = {}) {
 	}
 	return db.prepare(
 		`INSERT INTO payments (
-			payment_date, customer_name, amount_cents, payment_method, notes,
+			payment_date, customer_name, amount_cents, payment_method, bank, notes,
 			telegram_user_id, telegram_chat_id, telegram_username, source_update_id, created_at
-		 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+		 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
 		 RETURNING *`,
 	).bind(
 		requirePaymentDate(input.payment_date),
 		requireString(input.customer_name, 'El nombre del cliente', { min: 2, max: 120 }),
 		amountCents,
 		requireString(input.payment_method, 'El método de pago', { min: 2, max: 60 }),
+		requireBankForPayment(input.payment_method, input.bank),
 		requireString(input.notes, 'Las notas', { max: 1_000, optional: true }),
 		requireString(input.telegram_user_id, 'El identificador del usuario', { max: 32 }),
 		requireString(input.telegram_chat_id, 'El identificador del chat', { max: 32 }),
@@ -56,12 +58,13 @@ export async function createAppointmentPayment(db, input, { now = new Date() } =
 	}
 	await db.prepare(
 		`INSERT INTO payments (
-			appointment_id, payment_date, customer_name, amount_cents, payment_method, notes,
+			appointment_id, payment_date, customer_name, amount_cents, payment_method, bank, notes,
 			telegram_user_id, telegram_chat_id, telegram_username, created_at
-		 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
+		 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
 	).bind(
 		appointmentId, requirePaymentDate(input.payment_date), appointment.patient_name, amountCents,
 		requireString(input.payment_method, 'El método de pago', { min: 2, max: 60 }),
+		requireBankForPayment(input.payment_method, input.bank),
 		requireString(input.notes, 'Las notas', { max: 1_000, optional: true }),
 		appointment.telegram_user_id, appointment.telegram_chat_id, appointment.telegram_username, now.toISOString(),
 	).run();
@@ -114,12 +117,13 @@ export async function createOwnerChatPayment(db, input, { now = new Date() } = {
 			.bind(appointment.customer_id, fiscalData.cedula_ruc, fiscalData.address, fiscalData.phone, timestamp),
 		db.prepare(
 			`INSERT INTO payments (
-				appointment_id, payment_date, customer_name, amount_cents, payment_method, notes,
+				appointment_id, payment_date, customer_name, amount_cents, payment_method, bank, notes,
 				telegram_user_id, telegram_chat_id, telegram_username, source_update_id, created_at
-			 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
+			 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`,
 		).bind(
 			appointmentId, requirePaymentDate(input.payment_date), appointment.patient_name, amountCents,
 			requireString(input.payment_method, 'El método de pago', { min: 2, max: 60 }),
+			requireBankForPayment(input.payment_method, input.bank),
 			requireString(input.notes, 'Las notas', { max: 1_000, optional: true }),
 			requireString(input.telegram_user_id, 'El identificador del usuario', { max: 32 }),
 			requireString(input.telegram_chat_id, 'El identificador del chat', { max: 32 }),
@@ -138,4 +142,11 @@ export async function createOwnerChatPayment(db, input, { now = new Date() } = {
 		billing_type: billingType,
 		...fiscalData,
 	};
+}
+
+export async function attachPaymentReceipt(db, paymentId, receipt) {
+	return db.prepare(
+		`UPDATE payments SET receipt_key = ?2, receipt_name = ?3, receipt_mime_type = ?4
+		 WHERE id = ?1 AND LOWER(TRIM(payment_method)) = 'transferencia' RETURNING *`,
+	).bind(requirePositiveInteger(paymentId, 'El pago'), receipt.key, receipt.name, receipt.mimeType).first();
 }

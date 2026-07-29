@@ -7,7 +7,6 @@
 	"name": "cloudflare-worker",
 	"main": "src/index.js",
 	"compatibility_date": "2026-07-14",
-
 	"vars": {
 		"ADMIN_ALLOWED_ORIGINS": "http://localhost:3000,http://127.0.0.1:3000",
 		"GEMINI_DIAGNOSTICS": "true",
@@ -33,6 +32,23 @@
 		{
 			"binding": "CONVERSATIONS",
 			"id": "2c9d6a56fd5648889176166b1f34346c"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "RECEIPTS",
+			"bucket_name": "whatsapp-bot-receipts",
+			"preview_bucket_name": "whatsapp-bot-receipts-preview"
+		},
+		{
+			"bucket_name": "whatsapp-bot-receipts",
+			"binding": "whatsapp_bot_receipts",
+			"remote": true
+		},
+		{
+			"bucket_name": "whatsapp-bot-receipts-preview",
+			"binding": "whatsapp_bot_receipts_preview",
+			"remote": true
 		}
 	],
 	"assets": {

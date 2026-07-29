@@ -110,4 +110,43 @@ describe('webhook de Telegram', () => {
 		const telegramBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
 		expect(telegramBody.text).toContain('registrar pagos');
 	});
+
+	it('adjunta la siguiente foto al pago por transferencia pendiente', async () => {
+		const payment = await env.DB.prepare(
+			`INSERT INTO payments (
+				payment_date, customer_name, amount_cents, payment_method, bank,
+				telegram_user_id, telegram_chat_id, created_at
+			 ) VALUES ('2026-07-29', 'Cliente Prueba', 2500, 'Transferencia', 'Austro',
+			 '7001', '8001', CURRENT_TIMESTAMP) RETURNING id`,
+		).first();
+		await env.CONVERSATIONS.put('pending-payment-receipt:8001', JSON.stringify({ paymentId: payment.id }));
+		const fetchImpl = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				ok: true,
+				result: { file_path: 'photos/comprobante.jpg', file_size: 12 },
+			}), { headers: { 'Content-Type': 'application/json' } }))
+			.mockResolvedValueOnce(new Response('foto-prueba', { headers: { 'Content-Type': 'image/jpeg' } }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 2 } }), {
+				headers: { 'Content-Type': 'application/json' },
+			}));
+		vi.stubGlobal('fetch', fetchImpl);
+
+		await processTelegramUpdate({
+			update,
+			message: {
+				...update.message,
+				text: undefined,
+				photo: [{ file_id: 'photo-file', file_unique_id: 'photo-unique', width: 800, height: 600 }],
+			},
+			identity: 'photo-receipt',
+			env,
+		});
+
+		const stored = await env.DB.prepare('SELECT receipt_key, receipt_mime_type FROM payments WHERE id = ?1')
+			.bind(payment.id).first();
+		expect(stored.receipt_key).toMatch(new RegExp(`^payments/${payment.id}/`));
+		expect(stored.receipt_mime_type).toBe('image/jpeg');
+		expect(await env.RECEIPTS.head(stored.receipt_key)).not.toBeNull();
+		expect(await env.CONVERSATIONS.get('pending-payment-receipt:8001')).toBeNull();
+	});
 });

@@ -1,7 +1,9 @@
 import { ValidationError } from '../domain/errors.js';
-import { createExpense, deleteExpense, listExpenses } from '../repositories/expenses-repository.js';
+import { attachExpenseReceipt, createExpense, deleteExpense, listExpenses } from '../repositories/expenses-repository.js';
 import { readJsonWithLimit } from '../utils/http.js';
 import { jsonResponse } from '../utils/responses.js';
+import { receiptResponse, storeReceipt } from '../storage/receipts.js';
+import { isTransfer } from '../domain/banking.js';
 
 const ALLOWED_FIELDS = new Set([
 	'expense_date',
@@ -10,6 +12,7 @@ const ALLOWED_FIELDS = new Set([
 	'supplier',
 	'amount',
 	'payment_method',
+	'bank',
 	'document_type',
 	'document_number',
 	'notes',
@@ -31,7 +34,11 @@ function normalizeExpenseInput(input) {
 }
 
 function serializeExpense(expense) {
-	return { ...expense, amount: expense.amount_cents / 100 };
+	return {
+		...expense,
+		amount: expense.amount_cents / 100,
+		receipt_url: expense.receipt_key ? `/api/expenses/${expense.id}/receipt` : null,
+	};
 }
 
 export async function handleExpensesApi(request, env, url) {
@@ -40,12 +47,45 @@ export async function handleExpensesApi(request, env, url) {
 		return jsonResponse(expenses.map(serializeExpense));
 	}
 	if (request.method === 'POST' && url.pathname === '/api/expenses') {
-		const input = normalizeExpenseInput(await readJsonWithLimit(request, 32_000));
-		return jsonResponse(serializeExpense(await createExpense(env.DB, input)), 201);
+		const contentType = request.headers.get('content-type') || '';
+		let input;
+		let receiptFile;
+		if (contentType.includes('multipart/form-data')) {
+			const form = await request.formData();
+			receiptFile = form.get('receipt');
+			form.delete('receipt');
+			input = normalizeExpenseInput(Object.fromEntries(form.entries()));
+		} else {
+			input = normalizeExpenseInput(await readJsonWithLimit(request, 32_000));
+		}
+		if (receiptFile instanceof File && receiptFile.size > 0 && !isTransfer(input.payment_method)) {
+			throw new ValidationError('Solo se guardan comprobantes de transferencias bancarias.');
+		}
+		let expense = await createExpense(env.DB, input);
+		if (receiptFile instanceof File && receiptFile.size > 0) {
+			const receipt = await storeReceipt(env.RECEIPTS, {
+				ownerType: 'expenses',
+				ownerId: expense.id,
+				bytes: receiptFile,
+				mimeType: receiptFile.type,
+				fileName: receiptFile.name,
+			});
+			expense = await attachExpenseReceipt(env.DB, expense.id, receipt);
+		}
+		return jsonResponse(serializeExpense(expense), 201);
+	}
+	const receiptMatch = /^\/api\/expenses\/(\d+)\/receipt$/.exec(url.pathname);
+	if (request.method === 'GET' && receiptMatch) {
+		const expense = await env.DB.prepare('SELECT * FROM expenses WHERE id = ?1').bind(Number(receiptMatch[1])).first();
+		const response = expense
+			&& await receiptResponse(env.RECEIPTS, expense.receipt_key, expense.receipt_name, expense.receipt_mime_type);
+		return response ?? jsonResponse({ ok: false, error: 'Comprobante no encontrado.' }, 404);
 	}
 	const match = /^\/api\/expenses\/(\d+)$/.exec(url.pathname);
 	if (request.method === 'DELETE' && match) {
-		return jsonResponse(serializeExpense(await deleteExpense(env.DB, Number(match[1]))));
+		const deleted = await deleteExpense(env.DB, Number(match[1]));
+		if (deleted.receipt_key && env.RECEIPTS) await env.RECEIPTS.delete(deleted.receipt_key);
+		return jsonResponse(serializeExpense(deleted));
 	}
 	return null;
 }

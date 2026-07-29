@@ -55,7 +55,7 @@ export async function handleAppointmentsApi(request, env, url) {
 	}
 	if (action[2] === 'payment') {
 		const body = requireBodyObject(await readJsonWithLimit(request, 4_000));
-		const unknownKeys = Object.keys(body).filter((key) => !['payment_date', 'amount', 'payment_method', 'notes'].includes(key));
+		const unknownKeys = Object.keys(body).filter((key) => !['payment_date', 'amount', 'payment_method', 'bank', 'notes'].includes(key));
 		if (unknownKeys.length) throw new ValidationError('El pago contiene campos no permitidos.');
 		const payment = await createAppointmentPayment(env.DB, { ...body, appointment_id: appointmentId });
 		if (!payment) throw new AppointmentNotFoundError();

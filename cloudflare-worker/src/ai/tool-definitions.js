@@ -80,6 +80,31 @@ export const TOOL_DECLARATIONS = [
 		},
 	},
 	{
+		name: 'get_outstanding_balances',
+		description: 'Consulta saldos pendientes reales. Sin nombre devuelve todas las personas que deben; con customer_name devuelve la deuda de ese cliente.',
+		parametersJsonSchema: {
+			type: 'object',
+			properties: {
+				customer_name: { type: 'string', description: 'Nombre completo o parcial opcional del cliente.' },
+			},
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'get_expense_summary',
+		description: 'Consulta cuánto se gastó usando filtros opcionales de fechas, categoría o texto. Solo está disponible en modo dueño.',
+		parametersJsonSchema: {
+			type: 'object',
+			properties: {
+				date_from: { type: 'string', description: 'Fecha inicial inclusiva YYYY-MM-DD.' },
+				date_to: { type: 'string', description: 'Fecha final inclusiva YYYY-MM-DD.' },
+				category: { type: 'string', description: 'Categoría registrada, por ejemplo Alimentación, Transporte o Marketing.' },
+				search: { type: 'string', description: 'Texto opcional a buscar en categoría, descripción, proveedor o notas.' },
+			},
+			additionalProperties: false,
+		},
+	},
+	{
 		name: 'register_payment',
 		description: 'Registra un pago para una cita y servicio específicos. Solo está autorizada en modo dueño.',
 		parametersJsonSchema: {
@@ -89,6 +114,11 @@ export const TOOL_DECLARATIONS = [
 				payment_date: { type: 'string', description: 'Fecha local del pago en formato YYYY-MM-DD.' },
 				amount: { type: 'number', description: 'Monto pagado en la moneda del negocio, con máximo dos decimales.' },
 				payment_method: { type: 'string', description: 'Método de pago, por ejemplo efectivo o transferencia.' },
+				bank: {
+					type: 'string',
+					enum: ['Austro', 'Bolivariano', 'Guayaquil', 'Internacional', 'Pacífico', 'Pichincha', 'Produbanco'],
+					description: 'Banco obligatorio cuando payment_method es Transferencia.',
+				},
 				billing_type: { type: 'string', enum: ['consumer_final', 'customer_data'], description: 'Tipo de facturación.' },
 				cedula_ruc: { type: 'string', description: 'Cédula o RUC, obligatorio al facturar con datos.' },
 				address: { type: 'string', description: 'Dirección, obligatoria al facturar con datos.' },
@@ -99,6 +129,18 @@ export const TOOL_DECLARATIONS = [
 			additionalProperties: false,
 		},
 	},
+	{
+		name: 'get_financial_summary',
+		description: 'Compara ingresos cobrados, gastos y resultado neto, y resume citas pagadas, parciales, sin pagar y por cobrar para un período. Solo disponible en modo dueño.',
+		parametersJsonSchema: {
+			type: 'object',
+			properties: {
+				date_from: { type: 'string', description: 'Fecha inicial inclusiva YYYY-MM-DD.' },
+				date_to: { type: 'string', description: 'Fecha final inclusiva YYYY-MM-DD.' },
+			},
+			additionalProperties: false,
+		},
+	},
 ];
 
 export const ALLOWED_TOOL_NAMES = new Set(TOOL_DECLARATIONS.map((tool) => tool.name));
@@ -106,5 +148,11 @@ export const ALLOWED_TOOL_NAMES = new Set(TOOL_DECLARATIONS.map((tool) => tool.n
 export function toolDeclarationsForMode(aiMode) {
 	return aiMode === 'owner'
 		? TOOL_DECLARATIONS
-		: TOOL_DECLARATIONS.filter((tool) => !['find_customer_appointments', 'register_payment'].includes(tool.name));
+		: TOOL_DECLARATIONS.filter((tool) => ![
+			'find_customer_appointments',
+			'get_outstanding_balances',
+			'get_expense_summary',
+			'get_financial_summary',
+			'register_payment',
+		].includes(tool.name));
 }

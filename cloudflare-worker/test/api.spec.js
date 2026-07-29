@@ -189,6 +189,7 @@ describe.sequential('API administrativa', () => {
 				supplier: 'Proveedor local',
 				amount: 42.75,
 				payment_method: 'Transferencia',
+				bank: 'Pichincha',
 				document_type: 'Factura',
 				document_number: '001-001-000012345',
 				notes: 'Material para la semana',
@@ -204,6 +205,7 @@ describe.sequential('API administrativa', () => {
 			amount_cents: 4275,
 			amount: 42.75,
 			payment_method: 'Transferencia',
+			bank: 'Pichincha',
 			document_type: 'Factura',
 			document_number: '001-001-000012345',
 			notes: 'Material para la semana',
@@ -215,6 +217,54 @@ describe.sequential('API administrativa', () => {
 
 		const deleteResponse = await SELF.fetch(`${LOCAL_API}/expenses/${created.id}`, { method: 'DELETE' });
 		expect(deleteResponse.status).toBe(200);
+		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM expenses').first('count')).toBe(0);
+	});
+
+	it('exige banco en transferencias y guarda su comprobante', async () => {
+		const withoutBank = await SELF.fetch(`${LOCAL_API}/expenses`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				expense_date: '2026-07-15', description: 'Transferencia sin banco',
+				category: 'Otros', amount: 10, payment_method: 'Transferencia',
+			}),
+		});
+		expect(withoutBank.status).toBe(400);
+
+		const form = new FormData();
+		for (const [key, value] of Object.entries({
+			expense_date: '2026-07-15',
+			description: 'Transferencia con respaldo',
+			category: 'Insumos',
+			amount: '18.50',
+			payment_method: 'Transferencia',
+			bank: 'Pacífico',
+		})) form.set(key, value);
+		form.set('receipt', new File(['imagen-prueba'], 'comprobante.jpg', { type: 'image/jpeg' }));
+		const response = await SELF.fetch(`${LOCAL_API}/expenses`, { method: 'POST', body: form });
+		expect(response.status).toBe(201);
+		const expense = await response.json();
+		expect(expense).toMatchObject({ bank: 'Pacífico', receipt_url: `/api/expenses/${expense.id}/receipt` });
+
+		const receipt = await SELF.fetch(`http://localhost${expense.receipt_url}`);
+		expect(receipt.status).toBe(200);
+		expect(receipt.headers.get('content-type')).toBe('image/jpeg');
+		expect(await receipt.text()).toBe('imagen-prueba');
+	});
+
+	it('rechaza archivos que no correspondan a una transferencia bancaria', async () => {
+		const form = new FormData();
+		for (const [key, value] of Object.entries({
+			expense_date: '2026-07-15',
+			description: 'Pago en efectivo',
+			category: 'Otros',
+			amount: '10.00',
+			payment_method: 'Efectivo',
+		})) form.set(key, value);
+		form.set('receipt', new File(['no-guardar'], 'foto.jpg', { type: 'image/jpeg' }));
+		const response = await SELF.fetch(`${LOCAL_API}/expenses`, { method: 'POST', body: form });
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({ code: 'VALIDATION_ERROR' });
 		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM expenses').first('count')).toBe(0);
 	});
 
@@ -277,6 +327,26 @@ describe.sequential('API administrativa', () => {
 		});
 	});
 
+	it('lista y filtra citas por estado de pago en ingresos', async () => {
+		const appointment = await createAppointment(env.DB, {
+			telegram_user_id: '8101', telegram_chat_id: '8201', customer_name: 'Ana Ingresos',
+			service_id: service.id, start_datetime: '2026-07-20T14:00:00.000Z', source_update_id: 'income-report',
+		}, { now: new Date('2026-07-14T00:00:00.000Z') });
+		await SELF.fetch(`${LOCAL_API}/appointments/${appointment.id}/payment`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ payment_date: '2026-07-20', amount: 5, payment_method: 'Efectivo' }),
+		});
+		const response = await SELF.fetch(`${LOCAL_API}/income?from=2026-07-01&to=2026-07-31&customer=Ana&service=Corte&status=partial`);
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			summary: { expected_cents: 1250, paid_cents: 500, outstanding_cents: 750, appointments: 1 },
+			appointments: [expect.objectContaining({
+				id: appointment.id, customer_name: 'Ana Ingresos', service_name: 'Corte clasico',
+				payment_status: 'partial', paid_cents: 500, outstanding_cents: 750,
+			})],
+		});
+	});
+
 	it('mantiene los aliases que consume el calendario heredado', async () => {
 		await createAppointment(
 			env.DB,
@@ -325,7 +395,7 @@ describe.sequential('API administrativa', () => {
 
 		await SELF.fetch(`${LOCAL_API}/appointments/${appointment.id}/payment`, {
 			method: 'POST', headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ payment_date: '2026-07-20', amount: 7.5, payment_method: 'Transferencia' }),
+			body: JSON.stringify({ payment_date: '2026-07-20', amount: 7.5, payment_method: 'Transferencia', bank: 'Guayaquil' }),
 		});
 		appointments = await (await SELF.fetch(`${LOCAL_API}/appointments`)).json();
 		expect(appointments[0]).toMatchObject({ payment_status: 'paid', paid_cents: 1250 });

@@ -7,7 +7,9 @@ import { runGeminiAgent } from '../ai/gemini.js';
 import { buildSystemPrompt } from '../ai/system-prompt.js';
 import { toolDeclarationsForMode } from '../ai/tool-definitions.js';
 import { clearConversation, loadConversation, saveConversation } from '../conversation/store.js';
-import { sendTelegramMessage } from '../integrations/telegram.js';
+import { downloadTelegramFile, sendTelegramMessage } from '../integrations/telegram.js';
+import { attachPaymentReceipt } from '../repositories/payments-repository.js';
+import { storeReceipt } from '../storage/receipts.js';
 import { handleExpenseConfirmation, processExpenseMessage } from '../expenses/flow.js';
 import { isExplicitExpenseText, routeTelegramMessage } from '../expenses/telegram-router.js';
 import { getBusinessSettings } from '../repositories/settings-repository.js';
@@ -62,6 +64,31 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 	const username = typeof message.from?.username === 'string' ? message.from.username : null;
 	const text = typeof message.text === 'string' ? message.text.trim() : '';
 	const route = routeTelegramMessage(message);
+	if (route.type === 'image') {
+		const pendingKey = `pending-payment-receipt:${chatId}`;
+		const pending = await env.CONVERSATIONS.get(pendingKey, 'json');
+		if (pending?.paymentId) {
+			const pendingPayment = await env.DB.prepare(
+				'SELECT id, payment_method FROM payments WHERE id = ?1 LIMIT 1',
+			).bind(pending.paymentId).first();
+			if (pendingPayment && pendingPayment.payment_method.trim().toLocaleLowerCase('es') === 'transferencia') {
+				const media = await downloadTelegramFile(route.fileId, env);
+				const receipt = await storeReceipt(env.RECEIPTS, {
+					ownerType: 'payments',
+					ownerId: pending.paymentId,
+					bytes: media.bytes,
+					mimeType: media.mimeType || route.mimeType,
+					fileName: `comprobante-telegram-${message.message_id}.jpg`,
+				});
+				const payment = await attachPaymentReceipt(env.DB, pending.paymentId, receipt);
+				if (!payment) throw new Error('PENDING_PAYMENT_NOT_FOUND');
+				await env.CONVERSATIONS.delete(pendingKey);
+				await sendTelegramMessage(chatId, 'Listo, guardé el comprobante en el pago de la transferencia.', env);
+				return;
+			}
+			await env.CONVERSATIONS.delete(pendingKey);
+		}
+	}
 
 	if (route.type === 'unsupported') {
 		await processExpenseMessage({ route, chatId, userId, settings: null, env, now });
@@ -74,13 +101,19 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 
 	const command = route.type === 'text' ? commandFromText(text) : '';
 	if (command === '/start') {
-		await clearConversation(env.CONVERSATIONS, chatId);
+		await Promise.all([
+			clearConversation(env.CONVERSATIONS, chatId),
+			env.CONVERSATIONS.delete(`pending-payment-receipt:${chatId}`),
+		]);
 		const settings = await getBusinessSettings(env.DB);
 		await sendTelegramMessage(chatId, settings.aiMode === 'owner' ? OWNER_START_MESSAGE : CLIENT_START_MESSAGE, env);
 		return;
 	}
 	if (command === '/cancelar') {
-		await clearConversation(env.CONVERSATIONS, chatId);
+		await Promise.all([
+			clearConversation(env.CONVERSATIONS, chatId),
+			env.CONVERSATIONS.delete(`pending-payment-receipt:${chatId}`),
+		]);
 		await sendTelegramMessage(chatId, CANCEL_MESSAGE, env);
 		return;
 	}

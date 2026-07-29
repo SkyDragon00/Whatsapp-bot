@@ -36,6 +36,8 @@ describe('prompt del asistente', () => {
 		expect(prompt).toContain('find_customer_appointments');
 		expect(prompt).toContain('RUC 9999999999999');
 		expect(prompt).toContain('mayor de $50');
+		expect(prompt).toContain('get_financial_summary');
+		expect(prompt).toContain('income_cents');
 		expect(prompt).toContain('cédula/RUC, dirección y teléfono');
 	});
 });

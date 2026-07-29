@@ -320,6 +320,14 @@
   .expense-secondary { color: var(--text-secondary); display: block; margin-top: 3px; font-size: 12px; }
   .delete-expense { border: 0; background: transparent; color: var(--red); cursor: pointer; padding: 4px 6px; font: inherit; }
   .expenses-empty { padding: 34px !important; text-align: center !important; color: var(--text-secondary); }
+  .income-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .income-filters { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; align-items: end; padding: 16px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 10px; background: #fafbfd; }
+  .income-filters .form-field { grid-column: auto; }
+  .income-status { display: inline-flex; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .income-status.paid { color: #137333; background: #e6f4ea; }
+  .income-status.partial { color: #8a4b00; background: #fef7e0; }
+  .income-status.unpaid { color: #b3261e; background: #fce8e6; }
+  .appointment-state { color: var(--text-secondary); font-size: 12px; }
   .fc-event.appointment-cancelled {
     background: #9aa0a6 !important;
     opacity: 0.7;
@@ -720,7 +728,8 @@
     }
     header h1 { font-size: 18px; }
     .header-status { display: none; }
-    .expense-summary { grid-template-columns: 1fr 1fr; }
+    .expense-summary, .income-summary { grid-template-columns: 1fr 1fr; }
+    .income-filters { grid-template-columns: 1fr 1fr; }
     .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .dashboard-charts { grid-template-columns: 1fr; }
     .dashboard-columns { grid-template-columns: 1fr; }
@@ -836,6 +845,10 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16v12H4V7Z" stroke="currentColor" stroke-width="1.8"/><path d="M7 7V5h10v2M8 12h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         Gastos
       </button>
+      <button class="nav-item" type="button" data-view="income">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M7 16l4-4 3 3 5-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 8h4v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Ingresos
+      </button>
       <button class="nav-item active" type="button" data-view="calendar" aria-current="page">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         Calendario
@@ -928,6 +941,19 @@
               <option>Tarjeta de crédito</option><option>Cheque</option><option>Otro</option>
             </select>
           </div>
+          <div class="form-field" id="expenseBankField" hidden>
+            <label class="field-label" for="expenseBank">Banco</label>
+            <select id="expenseBank" name="bank">
+              <option value="">Selecciona el banco</option>
+              <option>Austro</option><option>Bolivariano</option><option>Guayaquil</option>
+              <option>Internacional</option><option>Pacífico</option><option>Pichincha</option><option>Produbanco</option>
+            </select>
+          </div>
+          <div class="form-field wide" id="expenseReceiptField" hidden>
+            <label class="field-label" for="expenseReceipt">Comprobante bancario</label>
+            <input id="expenseReceipt" name="receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" />
+            <span class="expense-secondary">Opcional. JPG, PNG, WebP o PDF, máximo 5 MB.</span>
+          </div>
           <div class="form-field">
             <label class="field-label" for="expenseDocumentType">Tipo de comprobante</label>
             <select id="expenseDocumentType" name="document_type">
@@ -955,6 +981,29 @@
             <tbody id="expensesTableBody"><tr><td class="expenses-empty" colspan="8">Cargando gastos...</td></tr></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <section class="app-view" id="incomeView" data-view-panel="income" hidden>
+      <div class="view-header"><div><h2>Ingresos</h2><p>Consulta el estado de pago de todas las citas.</p></div></div>
+      <div class="content-card">
+        <div class="income-summary">
+          <div class="summary-card"><div class="summary-label">Valor de citas</div><div class="summary-value" id="incomeExpected">$0,00</div></div>
+          <div class="summary-card"><div class="summary-label">Total pagado</div><div class="summary-value" id="incomePaid">$0,00</div></div>
+          <div class="summary-card"><div class="summary-label">Por cobrar</div><div class="summary-value" id="incomeOutstanding">$0,00</div></div>
+          <div class="summary-card"><div class="summary-label">Citas</div><div class="summary-value" id="incomeCount">0</div></div>
+        </div>
+        <form class="income-filters" id="incomeFilters">
+          <div class="form-field"><label class="field-label" for="incomeFrom">Desde</label><input id="incomeFrom" name="from" type="date"></div>
+          <div class="form-field"><label class="field-label" for="incomeTo">Hasta</label><input id="incomeTo" name="to" type="date"></div>
+          <div class="form-field"><label class="field-label" for="incomeCustomer">Cliente</label><input id="incomeCustomer" name="customer" type="search" maxlength="120" placeholder="Buscar cliente"></div>
+          <div class="form-field"><label class="field-label" for="incomeService">Servicio</label><select id="incomeService" name="service"><option value="">Todos los servicios</option></select></div>
+          <div class="form-field"><label class="field-label" for="incomeStatus">Estado de pago</label><select id="incomeStatus" name="status"><option value="">Todos</option><option value="paid">Pagado</option><option value="partial">Pago parcial</option><option value="unpaid">Sin pagar</option></select></div>
+        </form>
+        <div class="table-wrap"><table class="expense-table">
+          <thead><tr><th>Fecha</th><th>Cliente</th><th>Servicio</th><th>Estado de cita</th><th>Estado de pago</th><th>Valor</th><th>Pagado</th><th>Por cobrar</th></tr></thead>
+          <tbody id="incomeTableBody"><tr><td class="expenses-empty" colspan="8">Cargando ingresos...</td></tr></tbody>
+        </table></div>
       </div>
     </section>
 
@@ -1147,6 +1196,14 @@
           <option value="Efectivo">Efectivo</option><option value="Transferencia">Transferencia</option>
           <option value="Tarjeta">Tarjeta</option><option value="Otro">Otro</option>
         </select>
+        <div id="appointmentBankField" hidden>
+          <label class="field-label" for="appointmentPaymentBank">Banco</label>
+          <select class="wide-input" id="appointmentPaymentBank" name="bank">
+            <option value="">Selecciona el banco</option>
+            <option>Austro</option><option>Bolivariano</option><option>Guayaquil</option>
+            <option>Internacional</option><option>Pacífico</option><option>Pichincha</option><option>Produbanco</option>
+          </select>
+        </div>
         <button class="primary-button" type="submit">Guardar pago</button>
         <div class="settings-error" id="paymentError" role="alert"></div>
       </form>
@@ -1290,15 +1347,26 @@
   const paymentPanel = document.getElementById('paymentPanel');
   const paymentError = document.getElementById('paymentError');
   const appointmentPaymentAmount = document.getElementById('appointmentPaymentAmount');
+  const appointmentPaymentMethod = document.getElementById('appointmentPaymentMethod');
+  const appointmentPaymentBank = document.getElementById('appointmentPaymentBank');
+  const appointmentBankField = document.getElementById('appointmentBankField');
   const pageTitle = document.getElementById('pageTitle');
   const navigationItems = Array.from(document.querySelectorAll('.nav-item'));
   const viewPanels = Array.from(document.querySelectorAll('[data-view-panel]'));
   const expenseForm = document.getElementById('expenseForm');
   const expenseDate = document.getElementById('expenseDate');
+  const expensePaymentMethod = document.getElementById('expensePaymentMethod');
+  const expenseBank = document.getElementById('expenseBank');
+  const expenseBankField = document.getElementById('expenseBankField');
+  const expenseReceiptField = document.getElementById('expenseReceiptField');
+  const expenseReceipt = document.getElementById('expenseReceipt');
   const expenseMessage = document.getElementById('expenseMessage');
   const expensesTableBody = document.getElementById('expensesTableBody');
   const expenseTotal = document.getElementById('expenseTotal');
   const expenseCount = document.getElementById('expenseCount');
+  const incomeFilters = document.getElementById('incomeFilters');
+  const incomeTableBody = document.getElementById('incomeTableBody');
+  const incomeService = document.getElementById('incomeService');
   const dashboardFilters = document.getElementById('dashboardFilters');
   const dashboardMonth = document.getElementById('dashboardMonth');
   const dashboardPieChart = document.getElementById('dashboardPieChart');
@@ -1322,7 +1390,7 @@
   const customerFormTitle = document.getElementById('customerFormTitle');
 
   const dayLabels = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
-  const viewTitles = { invoices: 'Facturar', expenses: 'Gastos', calendar: 'Calendario', dashboard: 'Dashboard', customers: 'Clientes', 'ai-settings': 'Configuración de IA', moderator: 'Moderador' };
+  const viewTitles = { invoices: 'Facturar', expenses: 'Gastos', income: 'Ingresos', calendar: 'Calendario', dashboard: 'Dashboard', customers: 'Clientes', 'ai-settings': 'Configuración de IA', moderator: 'Moderador' };
   let currentSettings = null;
   let currentServices = [];
   let currentExpenses = [];
@@ -1449,6 +1517,7 @@
     showPayment.title = appt.price_cents == null ? 'Configura el precio del servicio' : 'Registrar pago';
     paymentPanel.hidden = true;
     paymentPanel.reset();
+    updateAppointmentTransferFields();
     paymentError.textContent = '';
     const remainingCents = Math.max(0, Number(appt.price_cents || 0) - Number(appt.paid_cents || 0));
     appointmentPaymentAmount.value = remainingCents ? (remainingCents / 100).toFixed(2) : '';
@@ -1952,6 +2021,16 @@
         descriptionCell.append(notes);
       }
       const documentLabel = [expense.document_type, expense.document_number].filter(Boolean).join(' · ') || '—';
+      const documentCell = createTableCell(documentLabel);
+      if (expense.receipt_url) {
+        const receiptLink = document.createElement('a');
+        receiptLink.className = 'expense-secondary';
+        receiptLink.href = expense.receipt_url;
+        receiptLink.target = '_blank';
+        receiptLink.rel = 'noopener';
+        receiptLink.textContent = 'Ver archivo';
+        documentCell.append(receiptLink);
+      }
       const actionCell = document.createElement('td');
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
@@ -1965,8 +2044,8 @@
         descriptionCell,
         createTableCell(expense.category),
         createTableCell(expense.supplier),
-        createTableCell(expense.payment_method),
-        createTableCell(documentLabel),
+        createTableCell([expense.payment_method, expense.bank].filter(Boolean).join(' · ')),
+        documentCell,
         createTableCell(formatCurrency(expense.amount), 'expense-amount'),
         actionCell,
       );
@@ -1979,6 +2058,52 @@
     const expenses = await parseApiResponse(response, 'No se pudieron cargar los gastos.');
     renderExpenses(expenses);
     return expenses;
+  }
+
+  function renderIncome(data) {
+    document.getElementById('incomeExpected').textContent = formatMoney(data.summary.expected_cents);
+    document.getElementById('incomePaid').textContent = formatMoney(data.summary.paid_cents);
+    document.getElementById('incomeOutstanding').textContent = formatMoney(data.summary.outstanding_cents);
+    document.getElementById('incomeCount').textContent = String(data.summary.appointments);
+    incomeTableBody.replaceChildren();
+    if (!data.appointments.length) {
+      const row = document.createElement('tr');
+      const cell = createTableCell('No hay citas que coincidan con los filtros.', 'expenses-empty');
+      cell.colSpan = 8;
+      row.append(cell);
+      incomeTableBody.append(row);
+      return;
+    }
+    const paymentLabels = { paid: 'Pagado', partial: 'Pago parcial', unpaid: 'Sin pagar' };
+    const appointmentLabels = { confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada', no_show: 'No asistió' };
+    for (const appointment of data.appointments) {
+      const row = document.createElement('tr');
+      const statusCell = document.createElement('td');
+      const badge = document.createElement('span');
+      badge.className = `income-status ${appointment.payment_status}`;
+      badge.textContent = paymentLabels[appointment.payment_status];
+      statusCell.append(badge);
+      row.append(
+        createTableCell(new Date(appointment.start_at).toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short', timeZone: currentSettings?.businessTimezone })),
+        createTableCell(appointment.customer_name),
+        createTableCell(appointment.service_name),
+        createTableCell(appointmentLabels[appointment.appointment_status] || appointment.appointment_status, 'appointment-state'),
+        statusCell,
+        createTableCell(appointment.price_cents == null ? 'Sin precio' : formatMoney(appointment.price_cents)),
+        createTableCell(formatMoney(appointment.paid_cents), 'expense-amount'),
+        createTableCell(formatMoney(appointment.outstanding_cents), 'expense-amount'),
+      );
+      incomeTableBody.append(row);
+    }
+  }
+
+  async function loadIncome() {
+    const params = new URLSearchParams();
+    for (const [key, value] of new FormData(incomeFilters).entries()) if (value) params.set(key, value);
+    const response = await apiFetch(`/api/income${params.size ? `?${params}` : ''}`);
+    const data = await parseApiResponse(response, 'No se pudieron cargar los ingresos.');
+    renderIncome(data);
+    return data;
   }
 
   function setExpenseMessage(message = '', type = '') {
@@ -2158,17 +2283,33 @@
 
   async function saveExpense() {
     const form = new FormData(expenseForm);
-    const input = Object.fromEntries(form.entries());
-    input.amount = Number(input.amount);
     const response = await apiFetch('/api/expenses', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      body: form,
     });
     await parseApiResponse(response, 'No se pudo guardar el gasto.');
     expenseForm.reset();
+    updateExpenseTransferFields();
     expenseDate.value = businessToday();
     await loadExpenses();
+  }
+
+  function updateExpenseTransferFields() {
+    const transfer = expensePaymentMethod.value === 'Transferencia';
+    expenseBankField.hidden = !transfer;
+    expenseReceiptField.hidden = !transfer;
+    expenseBank.required = transfer;
+    if (!transfer) {
+      expenseBank.value = '';
+      expenseReceipt.value = '';
+    }
+  }
+
+  function updateAppointmentTransferFields() {
+    const transfer = appointmentPaymentMethod.value === 'Transferencia';
+    appointmentBankField.hidden = !transfer;
+    appointmentPaymentBank.required = transfer;
+    if (!transfer) appointmentPaymentBank.value = '';
   }
 
   async function removeExpense(expenseId) {
@@ -2199,6 +2340,16 @@
       } catch (error) {
         setExpenseMessage(error.message, 'error');
       }
+    }
+    if (view === 'income') {
+      try {
+        if (!currentServices.length) await loadServices();
+        const selected = incomeService.value;
+        incomeService.replaceChildren(new Option('Todos los servicios', ''));
+        currentServices.forEach((service) => incomeService.add(new Option(service.name, service.name)));
+        incomeService.value = selected;
+        await loadIncome();
+      } catch (error) { refreshStatus.textContent = error.message; }
     }
     if (view === 'dashboard') {
       try { await loadFinancialDashboard(); } catch (error) { refreshStatus.textContent = error.message; }
@@ -2290,6 +2441,8 @@
   refreshAppointments.addEventListener('click', () => {
     const refresh = activeView === 'expenses'
       ? loadExpenses()
+      : activeView === 'income'
+        ? loadIncome()
       : activeView === 'customers'
         ? loadCustomers()
         : activeView === 'dashboard'
@@ -2300,6 +2453,12 @@
   for (const item of navigationItems) {
     item.addEventListener('click', () => { switchView(item.dataset.view); });
   }
+  let incomeSearchTimer;
+  incomeFilters.addEventListener('input', () => {
+    window.clearTimeout(incomeSearchTimer);
+    incomeSearchTimer = window.setTimeout(() => loadIncome().catch((error) => { refreshStatus.textContent = error.message; }), 250);
+  });
+  incomeFilters.addEventListener('change', () => loadIncome().catch((error) => { refreshStatus.textContent = error.message; }));
   expenseForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     setExpenseMessage('Guardando...');
@@ -2321,6 +2480,8 @@
     event.preventDefault();
     submitAuth(loginForm, '/api/auth/login');
   });
+  expensePaymentMethod.addEventListener('change', updateExpenseTransferFields);
+  appointmentPaymentMethod.addEventListener('change', updateAppointmentTransferFields);
   registerForm.addEventListener('submit', (event) => {
     event.preventDefault();
     submitAuth(registerForm, '/api/auth/register');
@@ -2469,6 +2630,7 @@
         document.getElementById('brandName').textContent = settings.businessProfile.businessName;
       }
       expenseDate.value = businessToday();
+      updateExpenseTransferFields();
 
     if (appointments.length === 0) {
       // Igual inicializamos el calendario vacío, solo informativo
