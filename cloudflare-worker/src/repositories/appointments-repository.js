@@ -12,23 +12,24 @@ import { getBusinessSettings } from './settings-repository.js';
 import { getServiceById } from './services-repository.js';
 import { findOrCreateCustomer } from './customers-repository.js';
 
-export async function listAppointments(db, { includeCancelled = false, limit = 500 } = {}) {
+export async function listAppointments(db, { includeCancelled = false, limit = 500, companyId = null } = {}) {
 	if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
 		throw new ValidationError('El límite de citas no es válido.');
 	}
-	const statusFilter = includeCancelled ? '' : `WHERE status = '${ACTIVE_APPOINTMENT_STATUS}'`;
+	const filters = ['(?2 IS NULL OR a.company_id = ?2)'];
+	if (!includeCancelled) filters.push(`a.status = '${ACTIVE_APPOINTMENT_STATUS}'`);
 	const result = await db
 		.prepare(
 			`SELECT a.*, s.price_cents, COALESCE(SUM(p.amount_cents), 0) AS paid_cents
 			 FROM appointments a
 			 LEFT JOIN services s ON s.id = a.service_id
 			 LEFT JOIN payments p ON p.appointment_id = a.id
-			 ${statusFilter ? statusFilter.replace('status', 'a.status') : ''}
+			 WHERE ${filters.join(' AND ')}
 			 GROUP BY a.id
 			 ORDER BY a.start_at, a.id
 			 LIMIT ?1`,
 		)
-		.bind(limit)
+		.bind(limit, companyId)
 		.all();
 	return result.results;
 }
@@ -89,8 +90,12 @@ export async function getAppointmentById(db, appointmentId) {
 	return db.prepare('SELECT * FROM appointments WHERE id = ?1 LIMIT 1').bind(id).first();
 }
 
-export async function createAppointment(db, input, { now = new Date() } = {}) {
+export async function createAppointment(db, input, { now = new Date(), companyId = undefined } = {}) {
 	const appointment = validateCreateAppointmentInput(input);
+	const serviceCompany = companyId === undefined
+		? await db.prepare('SELECT company_id FROM services WHERE id = ?1').bind(appointment.service_id).first()
+		: null;
+	const effectiveCompanyId = companyId === undefined ? (serviceCompany?.company_id ?? null) : companyId;
 	if (appointment.source_update_id) {
 		const existing = await findAppointmentBySourceUpdateId(db, appointment.source_update_id);
 		if (existing) return existing;
@@ -101,11 +106,11 @@ export async function createAppointment(db, input, { now = new Date() } = {}) {
 		telegram_chat_id: appointment.telegram_chat_id,
 		telegram_username: appointment.telegram_username,
 		phone: appointment.phone,
-	}, { now });
+	}, { now, companyId: effectiveCompanyId });
 
 	const [service, settings] = await Promise.all([
 		getServiceById(db, appointment.service_id),
-		getBusinessSettings(db),
+		getBusinessSettings(db, { companyId: effectiveCompanyId }),
 	]);
 	if (!service) throw new ValidationError('El servicio no existe o está deshabilitado.');
 
@@ -130,18 +135,20 @@ export async function createAppointment(db, input, { now = new Date() } = {}) {
 				`INSERT INTO appointments (
 					telegram_user_id, telegram_chat_id, telegram_username, patient_name,
 					service_id, service, service_name, date_text, date_iso,
-					start_at, end_at, status, phone, created_at, updated_at, source_update_id, customer_id
+					start_at, end_at, status, phone, created_at, updated_at, source_update_id, customer_id, company_id
 				)
 				SELECT
 					?1, ?2, ?3, ?4,
 					s.id, s.name, s.name, ?5, ?6,
-					?7, ?8, '${ACTIVE_APPOINTMENT_STATUS}', ?9, ?10, ?10, ?11, ?13
+					?7, ?8, '${ACTIVE_APPOINTMENT_STATUS}', ?9, ?10, ?10, ?11, ?13, ?14
 				FROM services AS s
 				WHERE s.id = ?12
 					AND s.enabled = 1
+					AND (?14 IS NULL OR s.company_id = ?14)
 					AND NOT EXISTS (
 						SELECT 1 FROM appointments AS existing
 						WHERE existing.status = '${ACTIVE_APPOINTMENT_STATUS}'
+							AND existing.company_id IS ?14
 							AND existing.start_at < ?8
 							AND existing.end_at > ?7
 					)
@@ -161,6 +168,7 @@ export async function createAppointment(db, input, { now = new Date() } = {}) {
 				appointment.source_update_id,
 				appointment.service_id,
 				customer.id,
+				effectiveCompanyId,
 			)
 			.first();
 
@@ -255,6 +263,7 @@ export async function rescheduleAppointmentAsAdmin(
 				   AND NOT EXISTS (
 				     SELECT 1 FROM appointments AS occupied
 				     WHERE occupied.id <> ?1
+				       AND occupied.company_id IS appointments.company_id
 				       AND occupied.status = '${ACTIVE_APPOINTMENT_STATUS}'
 				       AND occupied.start_at < ?6
 				       AND occupied.end_at > ?5

@@ -1,6 +1,7 @@
 import { hashPassword, verifyPassword } from '../auth/passwords.js';
 import { clearSessionCookie, createSession, deleteSession, getSessionUser } from '../auth/sessions.js';
 import { jsonResponse } from '../utils/responses.js';
+import { listModeratorCompanies } from './moderator.js';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9._-]{3,40}$/;
 
@@ -24,7 +25,23 @@ async function ensureSuperAdmin(db) {
 		`INSERT INTO users (company_id, username, password_hash, password_salt, password_iterations, role)
 		 VALUES (NULL, 'admin', ?1, ?2, ?3, 'super_admin')`,
 	).bind(password.hash, password.salt, password.iterations).run();
-	await db.prepare("INSERT OR IGNORE INTO companies (name) VALUES ('Fuzzy Hair')").run();
+	await db.prepare("INSERT OR IGNORE INTO companies (name) VALUES ('Funny Hair')").run();
+	await db.prepare(
+		`UPDATE users
+		 SET company_id = (SELECT id FROM companies WHERE name = 'Funny Hair' COLLATE NOCASE LIMIT 1)
+		 WHERE company_id IN (
+		 	SELECT id FROM companies
+		 	WHERE name COLLATE NOCASE IN ('Fuzzy Hair', 'Fuuny Hair')
+		 )`,
+	).run();
+	await db.prepare(
+		"DELETE FROM companies WHERE name COLLATE NOCASE IN ('Fuzzy Hair', 'Fuuny Hair')",
+	).run();
+	await db.prepare(
+		`UPDATE users
+		 SET company_id = (SELECT id FROM companies WHERE name = 'Funny Hair' COLLATE NOCASE LIMIT 1)
+		 WHERE username = 'Mario' COLLATE NOCASE AND role = 'admin'`,
+	).run();
 }
 
 function publicUser(user) {
@@ -89,9 +106,10 @@ export async function handleAuthApi(request, env, url) {
 
 	if (request.method === 'GET' && url.pathname === '/api/auth/me') {
 		const user = await getSessionUser(request, env.DB);
-		return user
-			? jsonResponse({ ok: true, user: publicUser(user) })
-			: jsonResponse({ ok: false, error: 'No autorizado.' }, 401);
+		if (!user) return jsonResponse({ ok: false, error: 'No autorizado.' }, 401);
+		const response = { ok: true, user: publicUser(user) };
+		if (user.role === 'super_admin') response.companies = await listModeratorCompanies(env.DB);
+		return jsonResponse(response);
 	}
 
 	if (request.method === 'POST' && url.pathname === '/api/auth/logout') {

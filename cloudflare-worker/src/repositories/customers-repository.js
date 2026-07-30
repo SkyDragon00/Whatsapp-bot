@@ -27,35 +27,47 @@ export function validateCustomerInput(input) {
 	};
 }
 
-export async function findOrCreateCustomer(db, input, { now = new Date() } = {}) {
+export async function findOrCreateCustomer(db, input, { now = new Date(), companyId = null } = {}) {
 	const name = input.full_name ? splitCustomerName(input.full_name) : validateCustomerInput(input);
 	const timestamp = now.toISOString();
-	await db.prepare(
-		`INSERT INTO customers (first_name, last_name, full_name, cedula_ruc, address, phone, telegram_user_id, telegram_chat_id, telegram_username, created_at, updated_at)
-		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)
-		 ON CONFLICT(full_name) DO UPDATE SET telegram_user_id = COALESCE(excluded.telegram_user_id, customers.telegram_user_id),
-		 telegram_chat_id = COALESCE(excluded.telegram_chat_id, customers.telegram_chat_id),
-		 telegram_username = COALESCE(excluded.telegram_username, customers.telegram_username),
-		 cedula_ruc = COALESCE(excluded.cedula_ruc, customers.cedula_ruc),
-		 address = COALESCE(excluded.address, customers.address),
-		 phone = COALESCE(customers.phone, excluded.phone), updated_at = excluded.updated_at`,
-	).bind(
+	const existing = await db.prepare(
+		'SELECT id FROM customers WHERE full_name = ?1 COLLATE NOCASE AND company_id IS ?2 LIMIT 1',
+	).bind(name.full_name, companyId).first();
+	const values = [
 		name.first_name, name.last_name, name.full_name,
 		name.cedula_ruc ?? input.cedula_ruc ?? null,
 		name.address ?? input.address ?? null,
 		name.phone ?? input.phone ?? null,
 		input.telegram_user_id ?? null, input.telegram_chat_id ?? null,
-		input.telegram_username ?? null, timestamp,
-	).run();
-	return db.prepare('SELECT * FROM customers WHERE full_name = ?1 COLLATE NOCASE LIMIT 1').bind(name.full_name).first();
+		input.telegram_username ?? null, timestamp, companyId,
+	];
+	if (existing) {
+		await db.prepare(
+			`UPDATE customers SET
+				telegram_user_id = COALESCE(?7, telegram_user_id),
+				telegram_chat_id = COALESCE(?8, telegram_chat_id),
+				telegram_username = COALESCE(?9, telegram_username),
+				cedula_ruc = COALESCE(?4, cedula_ruc), address = COALESCE(?5, address),
+				phone = COALESCE(phone, ?6), updated_at = ?10
+			 WHERE id = ?12`,
+		).bind(...values, existing.id).run();
+	} else {
+		await db.prepare(
+			`INSERT INTO customers (first_name, last_name, full_name, cedula_ruc, address, phone,
+				telegram_user_id, telegram_chat_id, telegram_username, created_at, updated_at, company_id)
+			 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, ?11)`,
+		).bind(...values).run();
+	}
+	return db.prepare('SELECT * FROM customers WHERE full_name = ?1 COLLATE NOCASE AND company_id IS ?2 LIMIT 1').bind(name.full_name, companyId).first();
 }
 
-export async function listCustomers(db) {
+export async function listCustomers(db, { companyId = null } = {}) {
 	const result = await db.prepare(
 		`SELECT c.*, COUNT(a.id) AS appointment_count, MAX(a.start_at) AS last_appointment_at
 		 FROM customers c LEFT JOIN appointments a ON a.customer_id = c.id
+		 WHERE (?1 IS NULL OR c.company_id = ?1)
 		 GROUP BY c.id ORDER BY c.last_name COLLATE NOCASE, c.first_name COLLATE NOCASE`,
-	).all();
+	).bind(companyId).all();
 	return result.results;
 }
 

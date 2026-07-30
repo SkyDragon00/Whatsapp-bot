@@ -58,7 +58,7 @@ describe.sequential('usuarios y moderación', () => {
 		});
 		expect(moderator.status).toBe(200);
 		expect(await moderator.json()).toMatchObject({
-			companies: expect.arrayContaining([expect.objectContaining({ name: 'Fuzzy Hair' })]),
+			companies: expect.arrayContaining([expect.objectContaining({ name: 'Funny Hair' })]),
 		});
 
 		const forbidden = await SELF.fetch(`${ORIGIN}/api/moderator/companies`);

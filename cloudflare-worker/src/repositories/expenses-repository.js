@@ -38,25 +38,25 @@ function validateExpenseInput(input) {
 	};
 }
 
-export async function listExpenses(db, { limit = 500 } = {}) {
+export async function listExpenses(db, { limit = 500, companyId = null } = {}) {
 	if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
 		throw new ValidationError('El límite de gastos no es válido.');
 	}
 	const result = await db
-		.prepare('SELECT * FROM expenses ORDER BY expense_date DESC, id DESC LIMIT ?1')
-		.bind(limit)
+		.prepare('SELECT * FROM expenses WHERE (?2 IS NULL OR company_id = ?2) ORDER BY expense_date DESC, id DESC LIMIT ?1')
+		.bind(limit, companyId)
 		.all();
 	return result.results;
 }
 
-export async function createExpense(db, input, { now = new Date() } = {}) {
+export async function createExpense(db, input, { now = new Date(), companyId = null } = {}) {
 	const expense = validateExpenseInput(input);
 	return db
 		.prepare(
 			`INSERT INTO expenses (
 				expense_date, description, category, supplier, amount_cents,
-				payment_method, bank, document_type, document_number, notes, created_at, updated_at
-			 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)
+				payment_method, bank, document_type, document_number, notes, created_at, updated_at, company_id
+			 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12)
 			 RETURNING *`,
 		)
 		.bind(
@@ -71,6 +71,7 @@ export async function createExpense(db, input, { now = new Date() } = {}) {
 			expense.document_number,
 			expense.notes,
 			now.toISOString(),
+			companyId,
 		)
 		.first();
 }

@@ -38,16 +38,20 @@ function requireBodyObject(value) {
 	return value;
 }
 
-export async function handleAppointmentsApi(request, env, url) {
+export async function handleAppointmentsApi(request, env, url, companyId) {
 	if (request.method === 'GET' && url.pathname === '/api/appointments') {
 		const includeCancelled = url.searchParams.get('include_cancelled') === 'true';
-		const appointments = await listAppointments(env.DB, { includeCancelled });
+		const appointments = await listAppointments(env.DB, { includeCancelled, companyId });
 		return jsonResponse(appointments.map(serializeAppointment));
 	}
 
 	const action = /^\/api\/appointments\/(\d+)\/(cancel|reschedule|payment)$/.exec(url.pathname);
 	if (request.method !== 'POST' || !action) return null;
 	const appointmentId = Number(action[1]);
+	const ownedAppointment = await env.DB.prepare(
+		'SELECT id FROM appointments WHERE id = ?1 AND (?2 IS NULL OR company_id = ?2)',
+	).bind(appointmentId, companyId).first();
+	if (!ownedAppointment) throw new AppointmentNotFoundError();
 	if (action[2] === 'cancel') {
 		const body = requireBodyObject(await readJsonWithLimit(request, 4_000));
 		if (Object.keys(body).length > 0) throw new ValidationError('La cancelación no acepta campos adicionales.');

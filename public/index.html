@@ -1301,6 +1301,7 @@
     : 'http://127.0.0.1:8787';
   const API_BASE_URL = String(window.APPOINTMENTS_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '');
   let currentUser = null;
+  let initialModeratorCompanies = null;
   const overlay = document.getElementById('modalOverlay');
   const modalClose = document.getElementById('modalClose');
   const settingsOverlay = document.getElementById('settingsOverlay');
@@ -1435,12 +1436,38 @@
     }
   }
 
+  function renderCompanies(companies) {
+    companyGrid.replaceChildren();
+    if (!companies.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No hay empresas registradas.';
+      companyGrid.append(empty);
+      return;
+    }
+    for (const company of companies) {
+      const card = document.createElement('article');
+      card.className = 'company-card';
+      const title = document.createElement('h3');
+      title.textContent = company.name;
+      const metadata = document.createElement('div');
+      metadata.className = 'company-meta';
+      const registeredAt = new Date(`${company.created_at}Z`).toLocaleDateString('es-EC');
+      metadata.textContent = `Estado: ${company.status === 'active' ? 'Activa' : 'Inactiva'} · Administradores: ${company.admin_count} · Registro: ${registeredAt}`;
+      card.append(title, metadata);
+      companyGrid.append(card);
+    }
+  }
+
   async function loadCompanies() {
+    if (initialModeratorCompanies) {
+      renderCompanies(initialModeratorCompanies);
+      initialModeratorCompanies = null;
+      return;
+    }
     const response = await apiFetch('/api/moderator/companies');
     const data = await parseApiResponse(response, 'No se pudieron cargar las empresas.');
-    companyGrid.innerHTML = data.companies.length
-      ? data.companies.map((company) => `<article class="company-card"><h3>${escapeHtml(company.name)}</h3><div class="company-meta">Estado: ${company.status === 'active' ? 'Activa' : 'Inactiva'}<br>Administradores: ${company.admin_count}<br>Registro: ${escapeHtml(new Date(company.created_at + 'Z').toLocaleDateString('es-EC'))}</div></article>`).join('')
-      : '<div class="empty-state">No hay empresas registradas.</div>';
+    renderCompanies(data.companies || []);
   }
 
   async function parseApiResponse(response, fallbackMessage) {
@@ -2355,7 +2382,13 @@
       try { await loadFinancialDashboard(); } catch (error) { refreshStatus.textContent = error.message; }
     }
     if (view === 'moderator') {
-      try { await loadCompanies(); } catch (error) { refreshStatus.textContent = error.message; }
+      companyGrid.innerHTML = '<div class="empty-state">Cargando empresas...</div>';
+      try {
+        await loadCompanies();
+      } catch (error) {
+        companyGrid.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+        refreshStatus.textContent = error.message;
+      }
     }
     if (view === 'ai-settings') {
       if (!currentSettings) await loadSettings();
@@ -2614,13 +2647,22 @@
         document.body.classList.add('logged-out');
         return;
       }
-      currentUser = (await sessionResponse.json()).user;
+      const sessionData = await sessionResponse.json();
+      currentUser = sessionData.user;
+      initialModeratorCompanies = Array.isArray(sessionData.companies) ? sessionData.companies : null;
       document.body.classList.remove('logged-out');
       adminSession.textContent = `Salir · ${currentUser.username}`;
       if (currentUser.role === 'super_admin') {
         moderatorNav.hidden = false;
         for (const item of navigationItems) item.hidden = item !== moderatorNav;
-        await switchView('moderator');
+        activeView = 'moderator';
+        pageTitle.textContent = 'Moderador';
+        for (const panel of viewPanels) panel.hidden = panel.dataset.viewPanel !== 'moderator';
+        moderatorNav.classList.add('active');
+        moderatorNav.setAttribute('aria-current', 'page');
+        refreshAppointments.hidden = true;
+        renderCompanies(initialModeratorCompanies || []);
+        initialModeratorCompanies = null;
         refreshStatus.textContent = 'Super administrador';
         return;
       }

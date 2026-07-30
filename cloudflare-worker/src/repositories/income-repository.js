@@ -39,6 +39,7 @@ export async function listIncomeAppointments(db, filters = {}) {
 				AND (?2 IS NULL OR substr(a.start_at, 1, 10) <= ?2)
 				AND (?3 IS NULL OR a.patient_name LIKE ?3 ESCAPE '\\' COLLATE NOCASE)
 				AND (?4 IS NULL OR COALESCE(a.service_name, a.service, '') LIKE ?4 ESCAPE '\\' COLLATE NOCASE)
+				AND (?6 IS NULL OR a.company_id = ?6)
 			GROUP BY a.id
 		)
 		SELECT *,
@@ -51,7 +52,7 @@ export async function listIncomeAppointments(db, filters = {}) {
 			WHEN price_cents IS NOT NULL AND paid_cents >= price_cents THEN 'paid'
 			ELSE 'partial' END = ?5)
 		ORDER BY start_at DESC, id DESC LIMIT 500`,
-	).bind(from, to, customer, service, paymentStatus).all();
+	).bind(from, to, customer, service, paymentStatus, filters.companyId ?? null).all();
 	const appointments = result.results;
 	return {
 		summary: {

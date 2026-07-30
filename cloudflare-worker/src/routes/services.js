@@ -41,19 +41,19 @@ function serializeService(service) {
 	};
 }
 
-export async function handleServicesApi(request, env, url) {
+export async function handleServicesApi(request, env, url, companyId) {
 	if (request.method === 'GET' && url.pathname === '/api/services') {
-		const services = await listServices(env.DB, { includeDisabled: true });
+		const services = await listServices(env.DB, { includeDisabled: true, companyId });
 		return jsonResponse(services.map(serializeService));
 	}
 	if (request.method === 'POST' && url.pathname === '/api/services') {
 		const input = normalizeServiceInput(await readJsonWithLimit(request, 32_000));
-		return jsonResponse(serializeService(await createService(env.DB, input)), 201);
+		return jsonResponse(serializeService(await createService(env.DB, input, { companyId })), 201);
 	}
 	const match = /^\/api\/services\/(\d+)$/.exec(url.pathname);
 	if (request.method === 'PUT' && match) {
 		const input = normalizeServiceInput(await readJsonWithLimit(request, 32_000));
-		return jsonResponse(serializeService(await updateService(env.DB, Number(match[1]), input)));
+		return jsonResponse(serializeService(await updateService(env.DB, Number(match[1]), input, { companyId })));
 	}
 	return null;
 }

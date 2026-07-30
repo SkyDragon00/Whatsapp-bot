@@ -12,7 +12,7 @@ function requireDate(value, label) {
 	return normalized;
 }
 
-export async function getDashboard(db, { from, to }) {
+export async function getDashboard(db, { from, to, companyId = null }) {
 	const startDate = requireDate(from, 'La fecha inicial');
 	const endDate = requireDate(to, 'La fecha final');
 	if (startDate > endDate) throw new ValidationError('El período del dashboard no es válido.');
@@ -23,12 +23,13 @@ export async function getDashboard(db, { from, to }) {
 		db.prepare(
 			`SELECT
 				(SELECT COALESCE(SUM(amount_cents), 0) FROM payments
-				 WHERE payment_date BETWEEN ?1 AND ?2) AS income_cents,
+				 WHERE payment_date BETWEEN ?1 AND ?2 AND (?3 IS NULL OR company_id = ?3)) AS income_cents,
 				(SELECT COALESCE(SUM(amount_cents), 0) FROM expenses
-				 WHERE expense_date BETWEEN ?1 AND ?2) AS expenses_cents,
+				 WHERE expense_date BETWEEN ?1 AND ?2 AND (?3 IS NULL OR company_id = ?3)) AS expenses_cents,
 				(SELECT COUNT(*) FROM appointments a
-				 WHERE ${appointmentDate} BETWEEN ?1 AND ?2 AND a.status IN ${activeStatuses}) AS services_count`,
-		).bind(startDate, endDate).first(),
+				 WHERE ${appointmentDate} BETWEEN ?1 AND ?2 AND a.status IN ${activeStatuses}
+				   AND (?3 IS NULL OR a.company_id = ?3)) AS services_count`,
+		).bind(startDate, endDate, companyId).first(),
 		db.prepare(
 			`SELECT
 				COALESCE(a.service_name, a.service, 'Servicio') AS service_name,
@@ -41,9 +42,10 @@ export async function getDashboard(db, { from, to }) {
 				SELECT appointment_id, SUM(amount_cents) AS paid_cents FROM payments GROUP BY appointment_id
 			 ) payments ON payments.appointment_id = a.id
 			 WHERE ${appointmentDate} BETWEEN ?1 AND ?2 AND a.status IN ${activeStatuses}
+			   AND (?3 IS NULL OR a.company_id = ?3)
 			 GROUP BY COALESCE(a.service_name, a.service, 'Servicio')
 			 ORDER BY appointments DESC, service_name COLLATE NOCASE`,
-		).bind(startDate, endDate).all(),
+		).bind(startDate, endDate, companyId).all(),
 		db.prepare(
 			`SELECT
 				a.id AS appointment_id, a.customer_id, a.patient_name AS customer_name,
@@ -58,21 +60,22 @@ export async function getDashboard(db, { from, to }) {
 			 WHERE ${appointmentDate} BETWEEN ?1 AND ?2
 			   AND a.status IN ${activeStatuses}
 			   AND COALESCE(payments.paid_cents, 0) < s.price_cents
+			   AND (?3 IS NULL OR a.company_id = ?3)
 			 ORDER BY outstanding_cents DESC, a.start_at DESC, a.id DESC`,
-		).bind(startDate, endDate).all(),
+		).bind(startDate, endDate, companyId).all(),
 		db.prepare(
 			`SELECT activity_date AS date,
 				SUM(income_cents) AS income_cents,
 				SUM(expenses_cents) AS expenses_cents
 			 FROM (
 				SELECT payment_date AS activity_date, SUM(amount_cents) AS income_cents, 0 AS expenses_cents
-				FROM payments WHERE payment_date BETWEEN ?1 AND ?2 GROUP BY payment_date
+				FROM payments WHERE payment_date BETWEEN ?1 AND ?2 AND (?3 IS NULL OR company_id = ?3) GROUP BY payment_date
 				UNION ALL
 				SELECT expense_date AS activity_date, 0 AS income_cents, SUM(amount_cents) AS expenses_cents
-				FROM expenses WHERE expense_date BETWEEN ?1 AND ?2 GROUP BY expense_date
+				FROM expenses WHERE expense_date BETWEEN ?1 AND ?2 AND (?3 IS NULL OR company_id = ?3) GROUP BY expense_date
 			 )
 			 GROUP BY activity_date ORDER BY activity_date`,
-		).bind(startDate, endDate).all(),
+		).bind(startDate, endDate, companyId).all(),
 	]);
 
 	const unpaid = unpaidResult.results;

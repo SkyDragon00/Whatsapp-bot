@@ -83,11 +83,13 @@ async function normalizeDocument(input) {
 	return { name, mimeType, content, sizeBytes };
 }
 
-export async function listKnowledgeDocuments(db) {
+export async function listKnowledgeDocuments(db, { companyId = null } = {}) {
 	const result = await withKnowledgeSchema(db, () => db.prepare(
 		`SELECT id, name, mime_type, size_bytes, created_at, updated_at
-		 FROM ai_knowledge_documents ORDER BY created_at DESC, id DESC`,
-	).all());
+		 FROM ai_knowledge_documents
+		 WHERE (?1 IS NULL OR company_id = ?1)
+		 ORDER BY created_at DESC, id DESC`,
+	).bind(companyId).all());
 	return result.results;
 }
 
@@ -98,26 +100,27 @@ export async function getKnowledgeContext(db) {
 	return result.results;
 }
 
-export async function createKnowledgeDocument(db, input) {
+export async function createKnowledgeDocument(db, input, { companyId = null } = {}) {
 	const document = await normalizeDocument(input);
 	const currentBytes = await withKnowledgeSchema(db, () => db
-		.prepare('SELECT COALESCE(SUM(size_bytes), 0) AS total FROM ai_knowledge_documents')
+		.prepare('SELECT COALESCE(SUM(size_bytes), 0) AS total FROM ai_knowledge_documents WHERE (?1 IS NULL OR company_id = ?1)')
+		.bind(companyId)
 		.first('total'));
 	if (Number(currentBytes) + document.sizeBytes > MAX_KNOWLEDGE_TOTAL_BYTES) {
 		throw new ValidationError('Los documentos de contexto no pueden superar 500 KB en total.');
 	}
 	return withKnowledgeSchema(db, () => db.prepare(
-		`INSERT INTO ai_knowledge_documents (name, mime_type, content, size_bytes)
-		 VALUES (?1, ?2, ?3, ?4) RETURNING id, name, mime_type, size_bytes, created_at, updated_at`,
-	).bind(document.name, document.mimeType, document.content, document.sizeBytes).first());
+		`INSERT INTO ai_knowledge_documents (name, mime_type, content, size_bytes, company_id)
+		 VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id, name, mime_type, size_bytes, created_at, updated_at`,
+	).bind(document.name, document.mimeType, document.content, document.sizeBytes, companyId).first());
 }
 
-export async function deleteKnowledgeDocument(db, id) {
+export async function deleteKnowledgeDocument(db, id, { companyId = null } = {}) {
 	const numericId = Number(id);
 	if (!Number.isInteger(numericId) || numericId <= 0) throw new ValidationError('El documento no es valido.');
 	const result = await withKnowledgeSchema(db, () => db
-		.prepare('DELETE FROM ai_knowledge_documents WHERE id = ?1 RETURNING id')
-		.bind(numericId)
+		.prepare('DELETE FROM ai_knowledge_documents WHERE id = ?1 AND (?2 IS NULL OR company_id = ?2) RETURNING id')
+		.bind(numericId, companyId)
 		.first());
 	if (!result) {
 		const error = new Error('Documento no encontrado.');

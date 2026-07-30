@@ -59,14 +59,15 @@ export async function createAppointmentPayment(db, input, { now = new Date() } =
 	await db.prepare(
 		`INSERT INTO payments (
 			appointment_id, payment_date, customer_name, amount_cents, payment_method, bank, notes,
-			telegram_user_id, telegram_chat_id, telegram_username, created_at
-		 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
+			telegram_user_id, telegram_chat_id, telegram_username, created_at, company_id
+		 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`,
 	).bind(
 		appointmentId, requirePaymentDate(input.payment_date), appointment.patient_name, amountCents,
 		requireString(input.payment_method, 'El método de pago', { min: 2, max: 60 }),
 		requireBankForPayment(input.payment_method, input.bank),
 		requireString(input.notes, 'Las notas', { max: 1_000, optional: true }),
 		appointment.telegram_user_id, appointment.telegram_chat_id, appointment.telegram_username, now.toISOString(),
+		appointment.company_id,
 	).run();
 
 	const paidCents = Number(appointment.paid_cents) + amountCents;

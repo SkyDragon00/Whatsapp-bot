@@ -41,9 +41,9 @@ function serializeExpense(expense) {
 	};
 }
 
-export async function handleExpensesApi(request, env, url) {
+export async function handleExpensesApi(request, env, url, companyId) {
 	if (request.method === 'GET' && url.pathname === '/api/expenses') {
-		const expenses = await listExpenses(env.DB);
+		const expenses = await listExpenses(env.DB, { companyId });
 		return jsonResponse(expenses.map(serializeExpense));
 	}
 	if (request.method === 'POST' && url.pathname === '/api/expenses') {
@@ -61,7 +61,7 @@ export async function handleExpensesApi(request, env, url) {
 		if (receiptFile instanceof File && receiptFile.size > 0 && !isTransfer(input.payment_method)) {
 			throw new ValidationError('Solo se guardan comprobantes de transferencias bancarias.');
 		}
-		let expense = await createExpense(env.DB, input);
+		let expense = await createExpense(env.DB, input, { companyId });
 		if (receiptFile instanceof File && receiptFile.size > 0) {
 			const receipt = await storeReceipt(env.RECEIPTS, {
 				ownerType: 'expenses',
@@ -76,13 +76,15 @@ export async function handleExpensesApi(request, env, url) {
 	}
 	const receiptMatch = /^\/api\/expenses\/(\d+)\/receipt$/.exec(url.pathname);
 	if (request.method === 'GET' && receiptMatch) {
-		const expense = await env.DB.prepare('SELECT * FROM expenses WHERE id = ?1').bind(Number(receiptMatch[1])).first();
+		const expense = await env.DB.prepare('SELECT * FROM expenses WHERE id = ?1 AND (?2 IS NULL OR company_id = ?2)').bind(Number(receiptMatch[1]), companyId).first();
 		const response = expense
 			&& await receiptResponse(env.RECEIPTS, expense.receipt_key, expense.receipt_name, expense.receipt_mime_type);
 		return response ?? jsonResponse({ ok: false, error: 'Comprobante no encontrado.' }, 404);
 	}
 	const match = /^\/api\/expenses\/(\d+)$/.exec(url.pathname);
 	if (request.method === 'DELETE' && match) {
+		const owned = await env.DB.prepare('SELECT id FROM expenses WHERE id = ?1 AND (?2 IS NULL OR company_id = ?2)').bind(Number(match[1]), companyId).first();
+		if (!owned) throw new ValidationError('No se encontrÃ³ el gasto.');
 		const deleted = await deleteExpense(env.DB, Number(match[1]));
 		if (deleted.receipt_key && env.RECEIPTS) await env.RECEIPTS.delete(deleted.receipt_key);
 		return jsonResponse(serializeExpense(deleted));

@@ -65,7 +65,9 @@ async function tokensMatch(received, expected) {
 async function authorizeAdminRequest(request, env) {
 	const sessionUser = await getSessionUser(request, env.DB);
 	if (sessionUser) return { ok: true, user: sessionUser };
-	if (isLocalHostname(new URL(request.url).hostname)) return { ok: true, user: null };
+	if (isLocalHostname(new URL(request.url).hostname)) {
+		return { ok: true, user: { role: 'admin', company_id: null, localDevelopment: true } };
+	}
 	const expectedToken = typeof env.ADMIN_API_TOKEN === 'string' ? env.ADMIN_API_TOKEN.trim() : '';
 	if (!expectedToken) {
 		return {

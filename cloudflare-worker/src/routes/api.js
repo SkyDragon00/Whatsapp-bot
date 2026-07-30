@@ -32,26 +32,30 @@ function safeApiError(error) {
 	return null;
 }
 
-async function dispatchApi(request, env, url) {
+async function dispatchApi(request, env, url, user) {
+	const companyId = user?.company_id;
+	if (!companyId && !user?.localDevelopment) {
+		return jsonResponse({ ok: false, error: 'Tu usuario no tiene una empresa asignada.', code: 'COMPANY_REQUIRED' }, 403);
+	}
 	let response = null;
 	if (url.pathname === '/api/appointments' || url.pathname.startsWith('/api/appointments/')) {
-		response = await handleAppointmentsApi(request, env, url);
+		response = await handleAppointmentsApi(request, env, url, companyId);
 	}
-	else if (url.pathname === '/api/settings') response = await handleSettingsApi(request, env);
+	else if (url.pathname === '/api/settings') response = await handleSettingsApi(request, env, companyId);
 	else if (url.pathname === '/api/ai-documents' || url.pathname.startsWith('/api/ai-documents/')) {
-		response = await handleKnowledgeApi(request, env, url);
+		response = await handleKnowledgeApi(request, env, url, companyId);
 	}
 	else if (url.pathname === '/api/expenses' || url.pathname.startsWith('/api/expenses/')) {
-		response = await handleExpensesApi(request, env, url);
+		response = await handleExpensesApi(request, env, url, companyId);
 	}
-	else if (url.pathname === '/api/income') response = await handleIncomeApi(request, env, url);
+	else if (url.pathname === '/api/income') response = await handleIncomeApi(request, env, url, companyId);
 	else if (url.pathname === '/api/services' || url.pathname.startsWith('/api/services/')) {
-		response = await handleServicesApi(request, env, url);
+		response = await handleServicesApi(request, env, url, companyId);
 	}
 	else if (url.pathname === '/api/customers' || url.pathname.startsWith('/api/customers/')) {
-		response = await handleCustomersApi(request, env, url);
+		response = await handleCustomersApi(request, env, url, companyId);
 	}
-	else if (url.pathname === '/api/dashboard') response = await handleDashboardApi(request, env, url);
+	else if (url.pathname === '/api/dashboard') response = await handleDashboardApi(request, env, url, companyId);
 	return response ?? jsonResponse({ ok: false, error: 'Ruta administrativa no encontrada.' }, 404);
 }
 
@@ -65,9 +69,9 @@ export async function handleApiRequest(request, env, url) {
 			{ role: 'super_admin' },
 		);
 	}
-	return withAdminProtection(request, env, async () => {
+	return withAdminProtection(request, env, async (user) => {
 		try {
-			return await dispatchApi(request, env, url);
+			return await dispatchApi(request, env, url, user);
 		} catch (error) {
 			const safeResponse = safeApiError(error);
 			if (safeResponse) return safeResponse;
