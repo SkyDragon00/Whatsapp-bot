@@ -749,6 +749,76 @@
   .ai-mode-actions { position:sticky; bottom:0; display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin:0 -24px -24px; padding:16px 24px; border-top:1px solid #e3e7ee; background:rgba(255,255,255,.94); backdrop-filter:blur(8px); }
   .ai-mode-message { color: var(--text-secondary); font-size: 13px; }
 
+  /* Refined week and day calendar views */
+  .fc .fc-timeGridWeek-view, .fc .fc-timeGridDay-view { border:1px solid #e3e8ef; border-radius:14px; overflow:hidden; background:#fff; }
+  .fc .fc-timeGridWeek-view table, .fc .fc-timeGridDay-view table { border-style:hidden; }
+  .fc .fc-timegrid-axis, .fc .fc-timegrid-slot-label { width:68px; border-color:#edf0f4; background:#fbfcfe; }
+  .fc .fc-timegrid-slot { height:3.25em; border-color:#edf0f4; }
+  .fc .fc-timegrid-slot-minor { border-top-style:dashed; border-color:#f0f2f5; }
+  .fc .fc-timegrid-slot-label-cushion { padding:0 11px; color:#7a8088; font-size:11px; font-weight:500; }
+  .fc .fc-timegrid-col { border-color:#e8ebf0; }
+  .fc .fc-timegrid-col.fc-day-today { background:linear-gradient(180deg,#f4f8ff,rgba(244,248,255,.35)) !important; }
+  .fc .fc-timeGridWeek-view .fc-col-header-cell, .fc .fc-timeGridDay-view .fc-col-header-cell { padding:10px 4px; border-color:#e6eaf0; background:#fbfcfe; }
+  .fc .fc-timeGridWeek-view .fc-col-header-cell-cushion, .fc .fc-timeGridDay-view .fc-col-header-cell-cushion { color:#555b63; font-size:12px; text-decoration:none; }
+  .fc .fc-timegrid-now-indicator-line { border-color:#e94235; border-width:2px 0 0; }
+  .fc .fc-timegrid-now-indicator-arrow { border-color:#e94235; border-top-color:transparent; border-bottom-color:transparent; }
+  .fc .fc-timegrid-event { margin:2px 4px; border-radius:8px; box-shadow:0 3px 9px rgba(37,69,130,.16); }
+  .fc .fc-timegrid-event .fc-event-main { padding:5px 7px; }
+  .fc .fc-timegrid-event .fc-event-time { font-size:11px; font-weight:600; opacity:.9; }
+  .fc .fc-timegrid-event .fc-event-title { margin-top:2px; font-size:12px; font-weight:600; line-height:1.25; }
+
+  /* Chronological appointment lists for week and day */
+  .fc .fc-list { border:0; border-radius:14px; background:transparent; }
+  .fc .fc-list-table { border-collapse:separate; border-spacing:0 8px; }
+  .fc .fc-list-day th { padding:12px 0 3px; border:0; background:transparent; }
+  .fc .fc-list-day-cushion { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border:1px solid #dfe7f3; border-radius:11px; background:linear-gradient(110deg,#edf4ff,#f7f9fd); }
+  .fc .fc-list-day-text, .fc .fc-list-day-side-text { color:#315da8; font:600 13px 'Google Sans','Roboto',sans-serif; text-decoration:none; text-transform:capitalize; }
+  .fc .fc-list-event { cursor:pointer; }
+  .fc .fc-list-event:hover td { background:#f7faff; }
+  .fc .fc-list-event td { padding:15px 12px; border-top:1px solid #e5e9ef; border-bottom:1px solid #e5e9ef; background:#fff; transition:background .15s; }
+  .fc .fc-list-event td:first-child { border-left:1px solid #e5e9ef; border-radius:12px 0 0 12px; }
+  .fc .fc-list-event td:last-child { border-right:1px solid #e5e9ef; border-radius:0 12px 12px 0; }
+  .fc .fc-list-event-time { width:105px; color:#315da8; font-size:12px; font-weight:600; white-space:nowrap; }
+  .fc .fc-list-event-graphic { width:28px; padding-right:4px; }
+  .fc .fc-list-event-dot { border-width:5px; }
+  .fc .fc-list-event-title { padding-left:6px; }
+  .calendar-list-appointment { display:grid; gap:6px; }
+  .calendar-list-title { color:#202124; font:600 15px 'Google Sans','Roboto',sans-serif; }
+  .calendar-list-meta { display:flex; flex-wrap:wrap; gap:6px; }
+  .calendar-list-chip { display:inline-flex; padding:4px 8px; border-radius:7px; background:#f1f3f6; color:#626870; font-size:11px; line-height:1.3; }
+  .calendar-list-chip.payment-paid { background:#e6f4ea; color:#137333; }
+  .calendar-list-chip.payment-partial { background:#e8f0fe; color:#315da8; }
+  .calendar-list-chip.payment-unpaid { background:#fff1d6; color:#845400; }
+  .fc .fc-list-empty { padding:70px 20px; border:1px dashed #d9e0e9; border-radius:14px; background:#fafbfd; color:var(--text-secondary); font-size:14px; }
+
+  /* Appointment detail modal */
+  #modalOverlay { background:rgba(24,31,45,.58); backdrop-filter:blur(5px); }
+  #modalOverlay .modal-card { width:min(760px,calc(100vw - 32px)); max-width:760px; border:1px solid rgba(255,255,255,.55); border-radius:20px; box-shadow:0 28px 80px rgba(15,25,45,.3); }
+  #modalOverlay .modal-header { position:absolute; right:max(calc((100vw - 760px)/2),16px); z-index:2; padding:13px; }
+  #modalOverlay .modal-close { color:#5f6875; background:rgba(255,255,255,.72); backdrop-filter:blur(6px); }
+  #modalOverlay .modal-close:hover { color:#202124; background:#fff; }
+  #modalOverlay .modal-body { gap:18px; padding:0 24px 24px; }
+  #modalOverlay .appointment-title-row { grid-column:1/-1; margin:0 -24px; }
+  #modalOverlay .appointment-details { padding:18px; border:1px solid #e4e8ee; border-radius:14px; background:#fff; }
+  #modalOverlay .appointment-title-row { position:relative; display:flex; align-items:center; gap:14px; padding:25px 70px 25px 24px; overflow:hidden; background:linear-gradient(125deg,#edf4ff,#f7f3ff 60%,#eefaf6); border-bottom:1px solid #e2e8f1; }
+  #modalOverlay .appointment-title-row::after { content:''; position:absolute; right:-28px; top:-65px; width:155px; height:155px; border-radius:50%; background:rgba(68,84,202,.07); }
+  .appointment-hero-icon { display:grid; place-items:center; width:46px; height:46px; flex:0 0 46px; border-radius:14px; color:#fff; background:linear-gradient(145deg,#1a73e8,#6565d7); box-shadow:0 8px 20px rgba(48,79,180,.22); }
+  .appointment-title-copy { min-width:0; flex:1; }
+  .appointment-eyebrow { margin-bottom:4px; color:#4b68a1; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  #modalOverlay .appointment-title-row .modal-title { margin:0; overflow:hidden; font-size:23px; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
+  #modalOverlay .payment-button { position:relative; z-index:1; border:1px solid #b8dfc4; border-radius:11px; width:38px; height:38px; background:#fff; color:#188038; font-size:19px; font-weight:600; box-shadow:0 4px 11px rgba(34,100,58,.1); }
+  #modalOverlay .modal-row { gap:12px; margin-bottom:15px; padding-bottom:15px; border-bottom:1px solid #eef0f3; }
+  #modalOverlay .modal-row:last-child { margin:0; padding:0; border:0; }
+  #modalOverlay .modal-row svg { box-sizing:content-box; padding:8px; margin:0; border-radius:9px; color:#315da8; background:#edf3ff; }
+  #modalOverlay .modal-row .label { margin-bottom:4px; font-size:11px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; }
+  #modalOverlay .modal-row .value { line-height:1.45; }
+  #modalOverlay .payment-status { display:inline-flex; width:fit-content; padding:4px 9px; border-radius:999px; background:#fff1d6; color:#845400; font-size:12px; font-weight:600; }
+  #modalOverlay .payment-status.paid { background:#e6f4ea; color:#137333; }
+  #modalOverlay .payment-status.partial { background:#e8f0fe; color:#315da8; }
+  #modalOverlay .payment-panel { padding:18px; border:1px solid #cfe4d5; border-radius:14px; background:#f4fbf6; }
+  #modalOverlay .reschedule-panel { padding:18px; border:1px solid #dce6f5; border-radius:14px; background:#f6f9ff; }
+  #modalOverlay .modal-actions { padding:14px; border:1px solid #eceff3; border-radius:14px; background:#fafbfc; }
+
   @media (max-width: 800px) {
     .app-shell { display: block; }
     .sidebar { width: 100%; padding: 8px 10px; border-right: 0; border-bottom: 1px solid var(--border); }
@@ -819,6 +889,9 @@
       display: block;
       padding: 4px 18px 22px;
     }
+    #modalOverlay .appointment-title-row { margin:-4px -18px 0; padding:22px 54px 22px 18px; }
+    #modalOverlay .appointment-title-row .modal-title { font-size:20px; }
+    #modalOverlay .modal-header { right:10px; }
     #modalOverlay .appointment-details,
     #modalOverlay .payment-panel,
     #modalOverlay .modal-actions,
@@ -1210,7 +1283,8 @@
     </div>
     <div class="modal-body">
       <div class="appointment-title-row">
-        <h2 class="modal-title" id="modalPatient"></h2>
+        <div class="appointment-hero-icon" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <div class="appointment-title-copy"><div class="appointment-eyebrow">Detalle de la cita</div><h2 class="modal-title" id="modalPatient"></h2></div>
         <button class="payment-button" id="showPayment" type="button" title="Registrar pago" aria-label="Registrar pago">$</button>
       </div>
 
@@ -1239,12 +1313,14 @@
         </div>
       </div>
       <div class="modal-row">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         <div>
           <div class="label">Estado y origen</div>
           <div class="value" id="modalStatus"></div>
         </div>
       </div>
       <div class="modal-row">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 7h14v10H5V7Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 11h8M8 14h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         <div>
           <div class="label">Pago de la cita</div>
           <div class="value payment-status" id="modalPaymentStatus"></div>
@@ -1602,7 +1678,9 @@
     document.getElementById('modalPhone').textContent = contact;
     document.getElementById('modalStatus').textContent = `${appt.status || 'confirmed'} · ${appt.origin || 'telegram'}`;
     const paymentLabels = { unpaid: 'Sin pagar', partial: 'Parcialmente pagado', paid: 'Pagado' };
-    document.getElementById('modalPaymentStatus').textContent = paymentLabels[appt.payment_status] || 'Sin pagar';
+    const modalPaymentStatus = document.getElementById('modalPaymentStatus');
+    modalPaymentStatus.textContent = paymentLabels[appt.payment_status] || 'Sin pagar';
+    modalPaymentStatus.className = `value payment-status ${appt.payment_status === 'paid' ? 'paid' : appt.payment_status === 'partial' ? 'partial' : ''}`;
     document.getElementById('modalPaymentSummary').textContent = appt.price_cents == null
       ? 'El servicio no tiene precio configurado'
       : `${formatMoney(appt.paid_cents || 0)} de ${formatMoney(appt.price_cents)}`;
@@ -2767,10 +2845,19 @@
       timeZone: settings.businessTimezone || 'America/Guayaquil',
       businessHours: getCalendarBusinessHours(settings),
       slotDuration: formatDuration(settings.appointmentDurationMinutes),
+      slotLabelInterval: '01:00:00',
+      nowIndicator: true,
+      allDaySlot: false,
+      slotEventOverlap: false,
+      scrollTime: '08:00:00',
       headerToolbar: {
         left: 'prev,next today',
         center: 'title',
-        right: 'dayGridMonth,timeGridWeek,timeGridDay',
+        right: 'dayGridMonth,listWeek,listDay',
+      },
+      views: {
+        listWeek: { buttonText: 'Semana', noEventsContent: 'No hay citas esta semana' },
+        listDay: { buttonText: 'Día', noEventsContent: 'No hay citas para este día' },
       },
       buttonText: {
         today: 'Hoy',
@@ -2783,6 +2870,36 @@
         hour: '2-digit',
         minute: '2-digit',
         meridiem: 'short',
+      },
+      eventDidMount: function (info) {
+        if (!info.view.type.startsWith('list')) return;
+        const target = info.el.querySelector('.fc-list-event-title');
+        if (!target) return;
+        const appointment = info.event.extendedProps;
+        const container = document.createElement('div');
+        container.className = 'calendar-list-appointment';
+        const title = document.createElement('div');
+        title.className = 'calendar-list-title';
+        title.textContent = `${appointment.customer_name || appointment.patient_name || 'Cliente'} · ${appointment.service_name || appointment.service || 'Servicio'}`;
+        const meta = document.createElement('div');
+        meta.className = 'calendar-list-meta';
+        const contact = appointment.phone ? String(appointment.phone).replace('@c.us', '') : appointment.telegram_username ? `@${appointment.telegram_username}` : 'Sin contacto';
+        const paymentLabels = { paid: 'Pagado', partial: 'Pago parcial', unpaid: 'Sin pagar' };
+        const details = [
+          { text: contact },
+          { text: appointment.status === 'cancelled' ? 'Cita cancelada' : 'Cita confirmada' },
+          { text: paymentLabels[appointment.payment_status] || 'Sin pagar', className: `payment-${appointment.payment_status || 'unpaid'}` },
+          appointment.price_cents == null ? null : { text: `${formatMoney(appointment.paid_cents || 0)} de ${formatMoney(appointment.price_cents)}` },
+          appointment.origin ? { text: `Origen: ${appointment.origin}` } : null,
+        ].filter(Boolean);
+        for (const detail of details) {
+          const chip = document.createElement('span');
+          chip.className = `calendar-list-chip ${detail.className || ''}`;
+          chip.textContent = detail.text;
+          meta.append(chip);
+        }
+        container.append(title, meta);
+        target.replaceChildren(container);
       },
       eventClick: function (info) {
         openModal(info.event.extendedProps);
