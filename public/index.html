@@ -205,24 +205,49 @@
   .view-header p { margin: 0; color: var(--text-secondary); font-size: 14px; }
   .content-card { padding: 22px; }
 
-  .customers-layout { display: grid; grid-template-columns: minmax(280px, .8fr) minmax(360px, 1.2fr); gap: 18px; }
-  .customer-list { display: grid; gap: 8px; }
-  .customer-item { width: 100%; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); padding: 12px; text-align: left; cursor: pointer; }
-  .customer-item:hover, .customer-item.active { border-color: var(--blue); background: #f8fbff; }
-  .customer-name { display: block; font-weight: 500; color: var(--text); }
-  .customer-meta { display: block; margin-top: 4px; color: var(--text-secondary); font-size: 12px; }
-  .customer-empty { color: var(--text-secondary); padding: 28px 8px; text-align: center; }
-  .customer-detail h3 { margin: 0 0 6px; font: 500 20px 'Google Sans', sans-serif; }
+  #customersView { max-width: 1100px; margin: 0 auto; }
+  .customers-hero { position:relative; display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:20px; padding:26px 28px; overflow:hidden; border:1px solid #dce6f6; border-radius:18px; background:linear-gradient(125deg,#f0f6ff,#f7f4ff 60%,#eefaf6); box-shadow:0 10px 32px rgba(42,70,115,.07); }
+  .customers-hero::after { content:''; position:absolute; right:-35px; top:-75px; width:180px; height:180px; border-radius:50%; background:rgba(26,115,232,.07); }
+  .customers-heading { display:flex; align-items:center; gap:16px; }
+  .customers-heading-icon { display:grid; place-items:center; width:50px; height:50px; flex:0 0 50px; border-radius:15px; color:#fff; background:linear-gradient(145deg,#1a73e8,#5b63d3); box-shadow:0 9px 20px rgba(47,86,184,.22); }
+  .customers-hero h2 { margin:0 0 5px; font:600 25px 'Google Sans','Roboto',sans-serif; color:#202124; }
+  .customers-hero p { margin:0; color:var(--text-secondary); font-size:14px; }
+  .customers-hero .primary-button { position:relative; z-index:1; white-space:nowrap; box-shadow:0 5px 14px rgba(26,115,232,.22); }
+  .customers-layout { display: grid; grid-template-columns: minmax(300px, .78fr) minmax(420px, 1.22fr); gap: 18px; align-items:start; }
+  .customer-directory,.customer-detail { padding:0; overflow:hidden; border:1px solid #e2e7ef; border-radius:16px; box-shadow:0 8px 28px rgba(40,60,95,.07); }
+  .customer-directory-header { padding:19px 19px 15px; border-bottom:1px solid #edf0f4; }
+  .customer-directory-title { margin:0 0 13px; font:600 16px 'Google Sans','Roboto',sans-serif; }
+  .customer-search-wrap { position:relative; color:#72777f; }
+  .customer-search-wrap svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); pointer-events:none; }
+  .customer-search { width:100%; min-height:40px; padding:9px 12px 9px 39px; border:1px solid #dfe3e9; border-radius:11px; outline:none; background:#f7f8fa; color:var(--text); font:inherit; }
+  .customer-search:focus { border-color:#7baaf7; background:#fff; box-shadow:0 0 0 3px rgba(26,115,232,.1); }
+  .customer-list { display: grid; gap: 5px; padding:10px; max-height:650px; overflow-y:auto; }
+  .customer-item { position:relative; width:100%; display:grid; grid-template-columns:42px 1fr auto; align-items:center; gap:11px; border:1px solid transparent; border-radius:12px; background:transparent; padding:10px; text-align:left; cursor:pointer; transition:background .16s,border-color .16s,transform .16s; }
+  .customer-item:hover { border-color:#dce6f7; background:#f7faff; transform:translateX(2px); }
+  .customer-item.active { border-color:#b9d0f5; background:#edf4ff; }
+  .customer-item.active::after { content:''; position:absolute; right:8px; width:6px; height:6px; border-radius:50%; background:var(--blue); }
+  .customer-avatar { display:grid; place-items:center; width:42px; height:42px; border-radius:13px; color:#315da8; background:linear-gradient(145deg,#e7efff,#e8e4fb); font:600 14px 'Google Sans',sans-serif; }
+  .customer-item-copy { min-width:0; }
+  .customer-name { display: block; overflow:hidden; color:#292b2f; font-weight:500; text-overflow:ellipsis; white-space:nowrap; }
+  .customer-meta { display: block; margin-top: 4px; overflow:hidden; color: var(--text-secondary); font-size: 12px; text-overflow:ellipsis; white-space:nowrap; }
+  .customer-empty { color:var(--text-secondary); padding:46px 24px; text-align:center; line-height:1.6; }
+  .customer-detail { min-height:330px; padding:24px; }
+  .customer-detail h3 { margin: 0 0 6px; font: 600 22px 'Google Sans', sans-serif; color:#202124; }
   .customer-detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
   .customer-detail-actions { display: flex; gap: 4px; }
-  .customer-action { border: 0; background: transparent; color: var(--text-secondary); width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; }
-  .customer-action:hover { background: #f1f3f4; color: var(--blue); }
+  .customer-action { border:1px solid #e0e4e9; background:#fff; color:var(--text-secondary); width:36px; height:36px; border-radius:10px; display:grid; place-items:center; cursor:pointer; }
+  .customer-action:hover { border-color:#b7cdf1; background:#f4f8ff; color:var(--blue); }
   .customer-action.delete:hover { background: #fce8e6; color: var(--red); }
-  .customer-detail-contact { color: var(--text-secondary); font-size: 13px; margin-bottom: 18px; }
-  .history-list { display: grid; gap: 9px; }
-  .history-item { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; padding: 12px 0; border-bottom: 1px solid #eee; }
-  .history-service { font-weight: 500; }
-  .history-date, .history-status { color: var(--text-secondary); font-size: 13px; }
+  .customer-detail-contact { display:flex; flex-wrap:wrap; gap:8px; margin:17px 0 25px; }
+  .customer-contact-chip { display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:9px; background:#f5f7fa; color:var(--text-secondary); font-size:12px; }
+  .customer-detail h4 { margin:0 0 12px; padding-top:18px; border-top:1px solid #ebedf1; font:600 15px 'Google Sans','Roboto',sans-serif; }
+  .history-list { display:grid; gap:8px; }
+  .history-item { display:grid; grid-template-columns:1fr auto; gap:7px 16px; padding:13px 14px; border:1px solid #e8ebef; border-radius:11px; background:#fbfcfd; }
+  .history-service { font-weight:500; color:#292b2f; }
+  .history-date { grid-column:1; color:var(--text-secondary); font-size:12px; }
+  .history-status { grid-column:2; grid-row:1 / span 2; align-self:center; padding:5px 8px; border-radius:999px; background:#e8f0fe; color:#315da8; font-size:11px; font-weight:500; }
+  .history-status.cancelled { background:#fce8e6; color:#b3261e; }
+  .history-status.unpaid { background:#fff4df; color:#8a5700; }
   .customer-form { display: grid; gap: 14px; }
 
   .invoice-empty {
@@ -480,21 +505,29 @@
   .payment-panel { display: grid; gap: 10px; padding: 14px; margin-top: 10px; border: 1px solid var(--border); border-radius: 10px; background: #fafbfd; }
   .payment-panel h3 { margin: 0; font-size: 16px; }
   .payment-status { font-weight: 500; }
-  .ai-settings-section { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px; }
-  .ai-settings-section h3 { margin: 0 0 6px; font: 500 18px 'Google Sans', 'Roboto', sans-serif; }
-  .ai-settings-section > p { margin: 0 0 16px; color: var(--text-secondary); font-size: 13px; }
-  .ai-preferences { display: grid; gap: 13px; }
+  .ai-settings-section { padding: 24px; border: 1px solid #e4e8f0; border-radius: 18px; background: rgba(255,255,255,.94); box-shadow: 0 8px 28px rgba(32,52,89,.06); }
+  .ai-section-heading { display: flex; align-items: flex-start; gap: 13px; margin-bottom: 20px; }
+  .ai-section-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 11px; color: #2457c5; background: #edf3ff; }
+  .ai-settings-section h3 { margin: 1px 0 5px; font: 600 18px 'Google Sans', 'Roboto', sans-serif; color: #202124; }
+  .ai-settings-section .section-copy { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
+  .ai-preferences { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+  .ai-preferences .full-width { grid-column: 1 / -1; }
   .style-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .style-option { display: grid; gap: 4px; padding: 13px; border: 1px solid var(--border); border-radius: 9px; cursor: pointer; }
-  .style-option:has(input:checked) { border-color: var(--blue); background: #e8f0fe; }
+  .style-option { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; padding: 15px; border: 1px solid #dfe3eb; border-radius: 13px; background: #fff; cursor: pointer; transition: border-color .18s, box-shadow .18s, transform .18s; }
+  .style-option:hover { border-color: #a8c7fa; transform: translateY(-1px); }
+  .style-option input { position: absolute; opacity: 0; }
+  .style-option::after { content: ''; width: 16px; height: 16px; border: 2px solid #aeb4be; border-radius: 50%; }
+  .style-option:has(input:checked) { border-color: #5b8def; background: #f5f8ff; box-shadow: 0 0 0 2px rgba(26,115,232,.1); }
+  .style-option:has(input:checked)::after { border: 5px solid var(--blue); }
+  .style-option:has(input:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
   .style-option-title { font-weight: 500; }
-  .style-option-description { color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
+  .style-option-description { grid-column: 1 / -1; color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
   .style-preview {
     margin-top: 12px;
     padding: 14px 16px;
-    border: 1px solid #d2e3fc;
-    border-radius: 10px;
-    background: #f8fbff;
+    border: 1px solid #dfe7f5;
+    border-radius: 14px;
+    background: linear-gradient(145deg,#f7faff,#f1f6ff);
   }
   .style-preview-label { color: var(--text-secondary); font-size: 12px; font-weight: 500; }
   .style-preview-message {
@@ -502,20 +535,21 @@
     max-width: min(100%, 560px);
     margin-top: 8px;
     padding: 10px 13px;
-    border-radius: 4px 12px 12px 12px;
-    background: #e6f4ea;
+    border-radius: 4px 14px 14px 14px;
+    background: #dcf8e7;
+    box-shadow: 0 4px 12px rgba(32,89,55,.08);
     color: var(--text);
     font-size: 14px;
     line-height: 1.5;
   }
-  .knowledge-upload { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 14px; border: 1px dashed var(--border); border-radius: 9px; background: #fafbfd; }
+  .knowledge-upload { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 20px; border: 1.5px dashed #9fb9e7; border-radius: 14px; background: #f7faff; }
   .knowledge-upload input { flex: 1; min-width: 240px; }
   .knowledge-list { display: grid; gap: 8px; margin-top: 14px; }
-  .knowledge-row { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; }
+  .knowledge-row { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border: 1px solid #e2e6ed; border-radius: 12px; background:#fff; }
   .knowledge-row-info { flex: 1; min-width: 0; }
   .knowledge-row-name { font-weight: 500; overflow-wrap: anywhere; }
   .knowledge-row-meta { color: var(--text-secondary); font-size: 12px; margin-top: 3px; }
-  .knowledge-empty { color: var(--text-secondary); font-size: 13px; padding: 12px 0; }
+  .knowledge-empty { color: var(--text-secondary); font-size: 13px; padding: 18px; text-align:center; border:1px solid #edf0f4; border-radius:12px; background:#fafbfc; }
   .settings-body {
     padding-bottom: 24px;
     max-height: calc(100vh - 100px);
@@ -667,44 +701,52 @@
     margin-top: 12px;
   }
 
-  .ai-mode-card {
-    max-width: 680px;
-    padding: 28px;
-  }
-  .ai-mode-card h2 { margin: 0 0 8px; }
-  .ai-mode-card > p { color: var(--text-secondary); margin: 0 0 24px; }
+  #aiSettingsView { max-width: 980px; margin: 0 auto; }
+  .ai-mode-card { padding: 0; overflow: hidden; border: 1px solid rgba(26,115,232,.12); box-shadow: 0 18px 55px rgba(34,65,120,.11); }
+  .ai-hero { position:relative; display:flex; align-items:center; gap:20px; padding: 30px 32px; overflow:hidden; background: linear-gradient(125deg,#eef4ff 0%,#f8f5ff 55%,#f0fbf8 100%); border-bottom:1px solid #e2e8f3; }
+  .ai-hero::after { content:''; position:absolute; width:210px; height:210px; right:-65px; top:-105px; border-radius:50%; background:rgba(99,102,241,.09); }
+  .ai-hero-mark { position:relative; display:grid; place-items:center; width:58px; height:58px; flex:0 0 58px; border-radius:18px; color:#fff; background:linear-gradient(145deg,#1a73e8,#7559d9); box-shadow:0 10px 24px rgba(64,83,190,.25); }
+  .ai-hero h2 { margin: 0 0 7px; font: 600 26px 'Google Sans','Roboto',sans-serif; color:#202124; }
+  .ai-hero p { color: var(--text-secondary); margin: 0; line-height:1.5; }
+  .ai-form-body { display:grid; gap:20px; padding:24px; background:#f8faff; }
+  .ai-mode-section { padding:24px; border:1px solid #e4e8f0; border-radius:18px; background:#fff; }
+  .ai-mode-eyebrow { margin-bottom:7px; color:#315da8; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  .ai-mode-section h3 { margin:0 0 6px; font:600 18px 'Google Sans','Roboto',sans-serif; }
+  .ai-mode-section > p { margin:0 0 18px; color:var(--text-secondary); font-size:13px; }
   .role-switch {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 4px;
-    padding: 4px;
-    border-radius: 12px;
-    background: #f1f3f4;
-    margin-bottom: 20px;
+    gap: 12px;
+    margin-bottom: 14px;
   }
   .role-switch input { position: absolute; opacity: 0; pointer-events: none; }
   .role-option {
-    padding: 13px 16px;
-    border-radius: 9px;
+    position:relative;
+    padding: 17px 18px 17px 48px;
+    border:1px solid #dfe3eb;
+    border-radius: 14px;
+    background:#fff;
     color: var(--text-secondary);
     cursor: pointer;
-    text-align: center;
+    text-align: left;
     font-weight: 500;
   }
-  .role-option:has(input:checked) {
-    background: var(--surface);
-    color: var(--blue);
-    box-shadow: 0 1px 3px rgba(60,64,67,.25);
-  }
+  .role-option::before { content:''; position:absolute; left:18px; top:50%; width:16px; height:16px; border:2px solid #aeb4be; border-radius:50%; transform:translateY(-50%); }
+  .role-option:hover { border-color:#a8c7fa; background:#fbfdff; }
+  .role-option:has(input:checked) { background:#f3f7ff; color:#174ea6; border-color:#6d9eeb; box-shadow:0 0 0 2px rgba(26,115,232,.09); }
+  .role-option:has(input:checked)::before { border:5px solid var(--blue); }
   .role-option:has(input:focus-visible) { outline: 2px solid var(--blue); }
   .ai-mode-detail {
-    padding: 16px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    padding: 14px 16px;
+    border: 0;
+    border-radius: 12px;
+    background:#f6f8fb;
+    color:var(--text-secondary);
+    font-size:13px;
     line-height: 1.55;
   }
-  .ai-mode-detail strong { display: block; margin-bottom: 4px; }
-  .ai-mode-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+  .ai-mode-detail strong { display: block; margin-bottom: 4px; color:var(--text); }
+  .ai-mode-actions { position:sticky; bottom:0; display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin:0 -24px -24px; padding:16px 24px; border-top:1px solid #e3e7ee; background:rgba(255,255,255,.94); backdrop-filter:blur(8px); }
   .ai-mode-message { color: var(--text-secondary); font-size: 13px; }
 
   @media (max-width: 800px) {
@@ -716,6 +758,8 @@
     main { width: 100%; }
     .form-field, .form-field.wide { grid-column: span 6; }
     .customers-layout { grid-template-columns: 1fr; }
+    .customers-hero { padding:20px; align-items:flex-start; }
+    .customers-heading-icon { width:44px; height:44px; flex-basis:44px; }
   }
 
   @media (max-width: 640px) {
@@ -753,6 +797,20 @@
       grid-template-columns: 1fr;
     }
     .style-options { grid-template-columns: 1fr; }
+    .customers-hero { flex-direction:column; }
+    .customers-hero .primary-button { width:100%; }
+    .customer-detail { padding:18px; }
+    .history-item { grid-template-columns:1fr; }
+    .history-date,.history-status { grid-column:1; grid-row:auto; justify-self:start; }
+    .ai-preferences { grid-template-columns:1fr; }
+    .ai-preferences .full-width { grid-column:auto; }
+    .ai-hero { padding:24px 20px; align-items:flex-start; }
+    .ai-hero-mark { width:48px; height:48px; flex-basis:48px; border-radius:15px; }
+    .ai-hero h2 { font-size:22px; }
+    .ai-form-body { padding:14px; }
+    .ai-settings-section,.ai-mode-section { padding:18px; border-radius:15px; }
+    .role-switch { grid-template-columns:1fr; }
+    .ai-mode-actions { margin:0 -18px -18px; padding:14px 18px; flex-wrap:wrap; }
     #modalOverlay .modal-card {
       width: calc(100vw - 20px);
       max-height: calc(100vh - 20px);
@@ -862,7 +920,7 @@
         Clientes
       </button>
       <button class="nav-item" type="button" data-view="ai-settings">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.8"/><path d="M10 11h.01M14 11h.01M10 14h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v3M9.5 3h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4" y="7" width="16" height="13" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M4 12H2M22 12h-2M8 12h.01M16 12h.01M9 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         Configuración de IA
       </button>
       <button class="nav-item" id="moderatorNav" type="button" data-view="moderator" hidden>
@@ -1052,31 +1110,38 @@
     </section>
 
     <section class="app-view" id="customersView" data-view-panel="customers" hidden>
-      <div class="view-header">
-        <div><h2>Clientes</h2><p>Consulta cada cliente y el historial completo de sus servicios.</p></div>
-        <button class="primary-button" id="createCustomer" type="button">Crear cliente</button>
+      <div class="customers-hero">
+        <div class="customers-heading"><div class="customers-heading-icon" aria-hidden="true"><svg width="25" height="25" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M3 20c0-4 2.5-6 6-6s6 2 6 6M16 8h5M18.5 5.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div><div><h2>Clientes</h2><p>Tu directorio de clientes y su historial de servicios, en un solo lugar.</p></div></div>
+        <button class="primary-button" id="createCustomer" type="button">+ Crear cliente</button>
       </div>
       <div class="customers-layout">
-        <div class="content-card"><div class="customer-list" id="customerList"><div class="customer-empty">Cargando clientes...</div></div></div>
+        <div class="content-card customer-directory"><div class="customer-directory-header"><h3 class="customer-directory-title">Directorio</h3><div class="customer-search-wrap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input class="customer-search" id="customerSearch" type="search" placeholder="Buscar por nombre o teléfono" aria-label="Buscar clientes" /></div></div><div class="customer-list" id="customerList"><div class="customer-empty">Cargando clientes...</div></div></div>
         <div class="content-card customer-detail" id="customerDetail"><div class="customer-empty">Selecciona un cliente para consultar su historial.</div></div>
       </div>
     </section>
 
     <section class="app-view" id="aiSettingsView" data-view-panel="ai-settings" hidden>
       <div class="content-card ai-mode-card">
-        <h2>Configuración de IA</h2>
-        <p>Define cómo responderá el bot y la información autorizada que puede utilizar.</p>
+        <div class="ai-hero">
+          <div class="ai-hero-mark" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M12 3v3M9.5 3h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><rect x="4" y="7" width="16" height="13" rx="3" stroke="currentColor" stroke-width="1.7"/><path d="M4 12H2M22 12h-2M8 12h.01M16 12h.01M9 16h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+          <div><h2>Configuración de IA</h2><p>Personaliza la forma en que tu asistente conversa, representa tu negocio y responde a tus clientes.</p></div>
+        </div>
         <form id="aiModeForm">
-          <div class="role-switch" role="radiogroup" aria-label="Rol del asistente">
-            <label class="role-option"><input type="radio" name="aiMode" value="client" checked />Cliente</label>
-            <label class="role-option"><input type="radio" name="aiMode" value="owner" />Dueño</label>
+          <div class="ai-form-body">
+          <div class="ai-mode-section">
+            <div class="ai-mode-eyebrow">Rol del asistente</div>
+            <h3>¿A quién asistirá?</h3>
+            <p>Selecciona el nivel de acceso y las tareas que podrá realizar.</p>
+            <div class="role-switch" role="radiogroup" aria-label="Rol del asistente">
+              <label class="role-option"><input type="radio" name="aiMode" value="client" checked />Atención al cliente</label>
+              <label class="role-option"><input type="radio" name="aiMode" value="owner" />Asistente del dueño</label>
+            </div>
+            <div class="ai-mode-detail" id="aiModeDetail"></div>
           </div>
-          <div class="ai-mode-detail" id="aiModeDetail"></div>
           <div class="ai-settings-section">
-            <h3>Preferencias del asistente</h3>
-            <p>Estos campos controlan el tono y los datos generales que presenta el asistente.</p>
+            <div class="ai-section-heading"><div class="ai-section-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 5h16M7 12h10M10 19h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div><div><h3>Personalidad y negocio</h3><p class="section-copy">Define el tono de la conversación y la información que el asistente compartirá.</p></div></div>
             <div class="ai-preferences">
-              <div>
+              <div class="full-width">
                 <div class="field-label">Estilo de comunicación</div>
                 <div class="style-options" role="radiogroup" aria-label="Estilo de comunicación del asistente">
                   <label class="style-option"><input type="radio" name="communicationStyle" value="formal" /><span class="style-option-title">Formal</span><span class="style-option-description">Profesional, respetuoso y de usted.</span></label>
@@ -1089,8 +1154,8 @@
                 </div>
               </div>
               <div><label class="field-label" for="contactPhone">Teléfono</label><input class="wide-input" id="contactPhone" type="text" maxlength="40" /></div>
-              <div><label class="field-label" for="businessGreeting">Saludo</label><textarea class="wide-input" id="businessGreeting" maxlength="300"></textarea></div>
-              <div><label class="field-label" for="businessAddress">Dirección</label><textarea class="wide-input" id="businessAddress" maxlength="300"></textarea></div>
+              <div><label class="field-label" for="businessGreeting">Saludo</label><textarea class="wide-input" id="businessGreeting" maxlength="300" placeholder="Ej. ¡Hola! Gracias por escribirnos..."></textarea></div>
+              <div><label class="field-label" for="businessAddress">Dirección</label><textarea class="wide-input" id="businessAddress" maxlength="300" placeholder="Dirección o referencia del local"></textarea></div>
               <div><label class="field-label" for="cancellationPolicy">Política de cancelación</label><textarea class="wide-input" id="cancellationPolicy" maxlength="1000"></textarea></div>
               <div><label class="field-label" for="arrivalInstructions">Instrucciones para llegar</label><textarea class="wide-input" id="arrivalInstructions" maxlength="1000"></textarea></div>
               <div><label class="field-label" for="generalNotes">Notas generales</label><textarea class="wide-input" id="generalNotes" maxlength="1000"></textarea></div>
@@ -1098,8 +1163,7 @@
             </div>
           </div>
           <div class="ai-settings-section">
-            <h3>Documentos de referencia</h3>
-            <p>El bot usará estos archivos como fuente para responder inquietudes. Si una respuesta no está documentada, indicará que no sabe.</p>
+            <div class="ai-section-heading"><div class="ai-section-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l4 4v14H7V3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M10 12h5M10 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div><div><h3>Base de conocimiento</h3><p class="section-copy">Agrega documentos confiables para que el asistente responda con información precisa de tu negocio.</p></div></div>
             <div class="knowledge-upload">
               <input id="knowledgeFile" type="file" accept=".pdf,.txt,.md,.markdown,.csv,.json,application/pdf,text/plain,text/markdown,text/csv,application/json" />
               <button class="text-button" id="uploadKnowledge" type="button">Subir documento</button>
@@ -1110,6 +1174,7 @@
           <div class="ai-mode-actions">
             <span class="ai-mode-message" id="aiModeMessage" role="status" aria-live="polite"></span>
             <button class="primary-button" type="submit">Guardar configuración de IA</button>
+          </div>
           </div>
         </form>
       </div>
@@ -1383,6 +1448,7 @@
   const uploadKnowledge = document.getElementById('uploadKnowledge');
   const knowledgeList = document.getElementById('knowledgeList');
   const customerList = document.getElementById('customerList');
+  const customerSearch = document.getElementById('customerSearch');
   const customerDetail = document.getElementById('customerDetail');
   const customerOverlay = document.getElementById('customerOverlay');
   const customerForm = document.getElementById('customerForm');
@@ -1931,13 +1997,20 @@
       button.type = 'button';
       button.className = 'customer-item';
       button.dataset.customerId = customer.id;
+      button.dataset.customerSearch = [customer.full_name, customer.phone, customer.telegram_username].filter(Boolean).join(' ').toLocaleLowerCase('es');
       const name = document.createElement('span');
       name.className = 'customer-name';
       name.textContent = customer.full_name;
+      const avatar = document.createElement('span');
+      avatar.className = 'customer-avatar';
+      avatar.textContent = customer.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+      const copy = document.createElement('span');
+      copy.className = 'customer-item-copy';
       const meta = document.createElement('span');
       meta.className = 'customer-meta';
       meta.textContent = `${customer.appointment_count} servicio${Number(customer.appointment_count) === 1 ? '' : 's'}${customer.telegram_username ? ` · @${customer.telegram_username}` : ''}`;
-      button.append(name, meta);
+      copy.append(name, meta);
+      button.append(avatar, copy);
       customerList.append(button);
     }
   }
@@ -1964,12 +2037,13 @@
     remove.innerHTML = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     actions.append(edit, remove); header.append(title, actions);
     const contact = document.createElement('div'); contact.className = 'customer-detail-contact';
-    contact.textContent = [
+    const contactItems = [
       `Cédula/RUC: ${customer.cedula_ruc || 'No registrada'}`,
       `Dirección: ${customer.address || 'No registrada'}`,
       `Teléfono: ${customer.phone || 'No registrado'}`,
       customer.telegram_username ? `Telegram: @${customer.telegram_username}` : 'Telegram: No registrado',
-    ].join(' · ');
+    ];
+    for (const value of contactItems) { const chip = document.createElement('span'); chip.className = 'customer-contact-chip'; chip.textContent = value; contact.append(chip); }
     const historyTitle = document.createElement('h4'); historyTitle.textContent = `Historial de servicios (${customer.appointments.length})`;
     const history = document.createElement('div'); history.className = 'history-list';
     if (!customer.appointments.length) {
@@ -1986,6 +2060,8 @@
           ? 'Pagado'
           : 'Parcialmente pagado';
       status.textContent = `${appointmentLabel} · ${paymentLabel}`;
+      if (appointment.status === 'cancelled') status.classList.add('cancelled');
+      else if (Number(appointment.paid_cents || 0) <= 0) status.classList.add('unpaid');
       const date = document.createElement('div'); date.className = 'history-date';
       date.textContent = appointment.start_at ? new Date(appointment.start_at).toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short', timeZone: currentSettings.businessTimezone }) : 'Fecha no disponible';
       item.append(service, status, date); history.append(item);
@@ -2592,6 +2668,10 @@
     if (item) showCustomer(Number(item.dataset.customerId)).catch((error) => { customerDetail.textContent = error.message; });
   });
   createCustomer.addEventListener('click', () => openCustomerEditor());
+  customerSearch.addEventListener('input', () => {
+    const query = customerSearch.value.trim().toLocaleLowerCase('es');
+    customerList.querySelectorAll('.customer-item').forEach((item) => { item.hidden = !item.dataset.customerSearch.includes(query); });
+  });
   customerDetail.addEventListener('click', (event) => {
     if (event.target.closest('[data-edit-customer]')) openCustomerEditor(currentSelectedCustomer);
     if (event.target.closest('[data-delete-customer]')) removeCustomer(currentSelectedCustomer).catch((error) => { customerDetail.textContent = error.message; });
