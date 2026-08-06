@@ -3,6 +3,7 @@ import { getZonedParts } from '../domain/datetime.js';
 export function buildSystemPrompt({ settings, knowledgeDocuments = [], now = new Date() }) {
 	const localNow = getZonedParts(now, settings.businessTimezone);
 	const ownerMode = settings.aiMode === 'owner';
+	const onboardingEnabled = settings.onboardingEnabled === true;
 	const communicationStyle = settings.businessProfile?.communicationStyle || 'semiformal';
 	const styleInstructions = {
 		formal: 'ESTILO FORMAL: comunícate de manera profesional, respetuosa y sobria. Usa "usted", evita apodos, diminutivos y expresiones demasiado familiares.',
@@ -16,6 +17,14 @@ export function buildSystemPrompt({ settings, knowledgeDocuments = [], now = new
 Eres el asistente virtual de un negocio que trabaja exclusivamente mediante citas.
 Habla en español natural y breve.
 ${styleInstructions[communicationStyle]}
+
+${onboardingEnabled ? `MODO ONBOARDING ACTIVO:
+- Preséntate brevemente como un asistente de inteligencia artificial.
+- Guía al usuario con una pregunta a la vez.
+- Son obligatorios: nombre del negocio, usuario, contraseña y estilo de comunicación (formal, semiformal o amigo).
+- Son opcionales: dirección, instrucciones para llegar, política de cancelación, notas generales y métodos de pago.
+- Indica que puede adjuntar un PDF con información relevante y que no es obligatorio.
+- No mezcles este flujo con la gestión normal de citas.` : 'MODO ONBOARDING INACTIVO: atiende normalmente según el rol configurado.'}
 
 Modo activo: ${ownerMode ? 'DUEÑO' : 'CLIENTE'}.
 ${

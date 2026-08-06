@@ -17,6 +17,22 @@ export async function getBusinessSettings(db, { companyId = null } = {}) {
 	return parseStoredBusinessSettings(values.get(scheduleKey), values.get(profileKey));
 }
 
+export async function getBotBusinessSettings(db) {
+	const result = await db.prepare(
+		"SELECT key, value FROM settings WHERE key LIKE 'company:%:schedule' ORDER BY key",
+	).all();
+	for (const row of result.results) {
+		try {
+			if (JSON.parse(row.value)?.onboardingEnabled !== true) continue;
+			const match = /^company:(\d+):schedule$/.exec(row.key);
+			if (match) return getBusinessSettings(db, { companyId: Number(match[1]) });
+		} catch {
+			// Ignora configuraciones heredadas o dañadas y conserva el fallback global.
+		}
+	}
+	return getBusinessSettings(db);
+}
+
 export async function saveBusinessSettings(db, input, { companyId = null } = {}) {
 	const settings = normalizeBusinessSettings(input);
 	const { businessProfile, ...schedule } = settings;

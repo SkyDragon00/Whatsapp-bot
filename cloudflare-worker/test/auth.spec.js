@@ -34,6 +34,9 @@ describe.sequential('usuarios y moderación', () => {
 				businessName: `Negocio ${suffix}`,
 				username: `user-${suffix}`,
 				password: 'password-seguro',
+				communicationStyle: 'friend',
+				address: 'Calle de prueba',
+				paymentMethods: 'Efectivo, Transferencia',
 			}),
 		});
 		expect(response.status).toBe(201);
@@ -45,6 +48,28 @@ describe.sequential('usuarios y moderación', () => {
 		});
 		expect(me.status).toBe(200);
 		expect(await me.json()).toMatchObject({ user: { username: `user-${suffix}`, role: 'admin' } });
+
+		const settings = await env.DB.prepare('SELECT key, value FROM settings WHERE key IN (?1, ?2)')
+			.bind(`company:${created.user.companyId}:schedule`, `company:${created.user.companyId}:business_profile`).all();
+		const saved = Object.fromEntries(settings.results.map((row) => [row.key.split(':').at(-1), JSON.parse(row.value)]));
+		expect(saved.schedule.aiMode).toBe('owner');
+		expect(saved.business_profile).toMatchObject({
+			businessName: `Negocio ${suffix}`,
+			communicationStyle: 'friend',
+			address: 'Calle de prueba',
+			acceptedPaymentMethods: ['Efectivo', 'Transferencia'],
+		});
+	});
+
+	it('exige el estilo de comunicación durante el onboarding', async () => {
+		const suffix = crypto.randomUUID().slice(0, 8);
+		const response = await SELF.fetch(`${ORIGIN}/api/auth/register`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ businessName: `Sin estilo ${suffix}`, username: `nostyle-${suffix}`, password: 'password-seguro' }),
+		});
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({ error: expect.stringContaining('formal') });
 	});
 
 	it('reserva la lista de empresas para el super admin', async () => {

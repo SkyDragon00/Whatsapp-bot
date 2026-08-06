@@ -33,7 +33,8 @@ export const DEFAULT_BUSINESS_HOURS = [
 ];
 
 export const DEFAULT_BUSINESS_SETTINGS = {
-	aiMode: 'client',
+	aiMode: 'owner',
+	onboardingEnabled: false,
 	appointmentDurationMinutes: DEFAULT_APPOINTMENT_DURATION_MINUTES,
 	businessTimezone: DEFAULT_BUSINESS_TIMEZONE,
 	slotIntervalMinutes: DEFAULT_SLOT_INTERVAL_MINUTES,

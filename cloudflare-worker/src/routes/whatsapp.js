@@ -9,7 +9,7 @@ import { toolDeclarationsForMode } from '../ai/tool-definitions.js';
 import { clearConversation, loadConversation, saveConversation } from '../conversation/store.js';
 import { sendWhatsAppMessage } from '../integrations/whatsapp.js';
 import { getKnowledgeContext } from '../repositories/knowledge-repository.js';
-import { getBusinessSettings } from '../repositories/settings-repository.js';
+import { getBotBusinessSettings } from '../repositories/settings-repository.js';
 import { logError } from '../utils/logging.js';
 import { jsonResponse } from '../utils/responses.js';
 
@@ -17,6 +17,8 @@ const CLIENT_START_MESSAGE =
 	'Hola. Soy tu asistente de citas. Puedo mostrarte servicios, horarios disponibles, agendar y cancelar citas.';
 const OWNER_START_MESSAGE =
 	'Hola. Estoy en modo dueño. Puedo agendar citas para tus clientes y registrar pagos recibidos.';
+const ONBOARDING_START_MESSAGE =
+	'Hola. Soy un asistente de inteligencia artificial y te ayudaré a configurar tu negocio. Empecemos: ¿cuál es el nombre de tu negocio?';
 const CANCEL_MESSAGE = 'Listo, reinicié la conversación actual. Puedes comenzar de nuevo cuando quieras.';
 const SAFE_ERROR_MESSAGE = 'Tuve un problema procesando el mensaje. Intenta nuevamente en unos segundos.';
 const MAX_WEBHOOK_BYTES = 512_000;
@@ -115,16 +117,18 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 			await sendWhatsAppMessage(recipient, CANCEL_MESSAGE, env);
 			return;
 		}
-		const settings = await getBusinessSettings(env.DB);
+		const settings = await getBotBusinessSettings(env.DB);
 		await sendWhatsAppMessage(
 			recipient,
-			settings.aiMode === 'owner' ? OWNER_START_MESSAGE : CLIENT_START_MESSAGE,
+			settings.onboardingEnabled
+				? ONBOARDING_START_MESSAGE
+				: settings.aiMode === 'owner' ? OWNER_START_MESSAGE : CLIENT_START_MESSAGE,
 			env,
 		);
 		return;
 	}
 
-	const settings = await getBusinessSettings(env.DB);
+	const settings = await getBotBusinessSettings(env.DB);
 	const history = await loadConversation(env.CONVERSATIONS, channelId);
 	let knowledgeDocuments = [];
 	try {

@@ -12,7 +12,7 @@ import { attachPaymentReceipt } from '../repositories/payments-repository.js';
 import { storeReceipt } from '../storage/receipts.js';
 import { handleExpenseConfirmation, processExpenseMessage } from '../expenses/flow.js';
 import { isExplicitExpenseText, routeTelegramMessage } from '../expenses/telegram-router.js';
-import { getBusinessSettings } from '../repositories/settings-repository.js';
+import { getBotBusinessSettings } from '../repositories/settings-repository.js';
 import { getKnowledgeContext } from '../repositories/knowledge-repository.js';
 import { readJsonWithLimit } from '../utils/http.js';
 import { logError } from '../utils/logging.js';
@@ -22,6 +22,8 @@ const CLIENT_START_MESSAGE =
 	'Hola. Soy tu asistente de citas. Puedo mostrarte servicios, horarios disponibles, agendar y cancelar citas.';
 const OWNER_START_MESSAGE =
 	'Hola. Estoy en modo dueño. Puedo agendar citas para tus clientes y registrar pagos recibidos o gastos del negocio.';
+const ONBOARDING_START_MESSAGE =
+	'Hola. Soy un asistente de inteligencia artificial y te ayudaré a configurar tu negocio. Empecemos: ¿cuál es el nombre de tu negocio?';
 const CANCEL_MESSAGE = 'Listo, reinicié la conversación actual. Puedes comenzar de nuevo cuando quieras.';
 const SAFE_ERROR_MESSAGE = 'Tuve un problema procesando el mensaje. Intenta nuevamente en unos segundos.';
 
@@ -105,8 +107,10 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 			clearConversation(env.CONVERSATIONS, chatId),
 			env.CONVERSATIONS.delete(`pending-payment-receipt:${chatId}`),
 		]);
-		const settings = await getBusinessSettings(env.DB);
-		await sendTelegramMessage(chatId, settings.aiMode === 'owner' ? OWNER_START_MESSAGE : CLIENT_START_MESSAGE, env);
+		const settings = await getBotBusinessSettings(env.DB);
+		await sendTelegramMessage(chatId, settings.onboardingEnabled
+			? ONBOARDING_START_MESSAGE
+			: settings.aiMode === 'owner' ? OWNER_START_MESSAGE : CLIENT_START_MESSAGE, env);
 		return;
 	}
 	if (command === '/cancelar') {
@@ -117,7 +121,7 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 		await sendTelegramMessage(chatId, CANCEL_MESSAGE, env);
 		return;
 	}
-	const settings = await getBusinessSettings(env.DB);
+	const settings = await getBotBusinessSettings(env.DB);
 	if (route.type === 'text' && await handleExpenseConfirmation({ text, chatId, userId, env, now })) return;
 	if (settings.aiMode === 'owner' && (route.type !== 'text' || isExplicitExpenseText(text))) {
 		await processExpenseMessage({ route, chatId, userId, settings, env, now });

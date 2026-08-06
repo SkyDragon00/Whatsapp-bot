@@ -42,6 +42,7 @@ export function normalizeBusinessSettings(input) {
 		value,
 		new Set([
 			'aiMode',
+			'onboardingEnabled',
 			'appointmentDurationMinutes',
 			'businessTimezone',
 			'slotIntervalMinutes',
@@ -55,8 +56,12 @@ export function normalizeBusinessSettings(input) {
 	);
 	const duration = Number(value.appointmentDurationMinutes);
 	const aiMode = value.aiMode ?? DEFAULT_BUSINESS_SETTINGS.aiMode;
+	const onboardingEnabled = value.onboardingEnabled ?? DEFAULT_BUSINESS_SETTINGS.onboardingEnabled;
 	if (!['client', 'owner'].includes(aiMode)) {
 		throw new ValidationError('El modo de IA debe ser cliente o dueño.');
+	}
+	if (typeof onboardingEnabled !== 'boolean') {
+		throw new ValidationError('El modo onboarding debe estar encendido o apagado.');
 	}
 	if (!Number.isInteger(duration) || duration < 15 || duration > 480) {
 		throw new ValidationError('La duración predeterminada debe estar entre 15 y 480 minutos.');
@@ -126,6 +131,7 @@ export function normalizeBusinessSettings(input) {
 
 	return {
 		aiMode,
+		onboardingEnabled,
 		appointmentDurationMinutes: duration,
 		businessTimezone,
 		slotIntervalMinutes: slotInterval,

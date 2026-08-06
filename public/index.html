@@ -710,6 +710,18 @@
   .ai-hero p { color: var(--text-secondary); margin: 0; line-height:1.5; }
   .ai-form-body { display:grid; gap:20px; padding:24px; background:#f8faff; }
   .ai-mode-section { padding:24px; border:1px solid #e4e8f0; border-radius:18px; background:#fff; }
+  .onboarding-status{display:flex;align-items:flex-start;gap:15px;border-color:#cfe2ff;background:linear-gradient(120deg,#f6f9ff,#f5fbf8)}
+  .onboarding-status-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:13px;background:#e8f0fe;color:#1967d2;font-size:21px}
+  .onboarding-badge{display:inline-block;margin-top:5px;padding:4px 9px;border-radius:99px;background:#e6f4ea;color:#137333;font-size:11px;font-weight:700}
+  .onboarding-switch-row{display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .onboarding-switch-copy p{margin:5px 0 0;color:var(--text-secondary);font-size:13px;line-height:1.5}
+  .mode-switch{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;cursor:pointer}
+  .mode-switch input{position:absolute;opacity:0;pointer-events:none}
+  .mode-switch-track{position:relative;width:52px;height:30px;border-radius:99px;background:#bdc1c6;transition:.2s}
+  .mode-switch-track::after{content:'';position:absolute;left:4px;top:4px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);transition:.2s}
+  .mode-switch input:checked + .mode-switch-track{background:#1a73e8}
+  .mode-switch input:checked + .mode-switch-track::after{transform:translateX(22px)}
+  .mode-switch input:focus-visible + .mode-switch-track{outline:3px solid rgba(26,115,232,.25);outline-offset:2px}
   .ai-mode-eyebrow { margin-bottom:7px; color:#315da8; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
   .ai-mode-section h3 { margin:0 0 6px; font:600 18px 'Google Sans','Roboto',sans-serif; }
   .ai-mode-section > p { margin:0 0 18px; color:var(--text-secondary); font-size:13px; }
@@ -902,13 +914,17 @@
 </style>
 <style>
   .auth-page{min-height:100vh;display:grid;place-items:center;padding:32px 18px;background:linear-gradient(135deg,#eef5ff,#fff 55%,#e8f5ef)}
-  .auth-shell{width:min(940px,100%);display:grid;grid-template-columns:1.1fr .9fr;overflow:hidden;border-radius:24px;background:#fff;box-shadow:0 24px 70px rgba(32,56,85,.16)}
+  .auth-shell{width:min(1040px,100%);display:grid;grid-template-columns:1fr 1.15fr;overflow:hidden;border-radius:24px;background:#fff;box-shadow:0 24px 70px rgba(32,56,85,.16)}
   .auth-intro{padding:56px;color:#fff;background:linear-gradient(145deg,#174ea6,#1a73e8 58%,#34a853)}
   .auth-intro h1{margin:18px 0 12px;font:700 38px/1.08 'Google Sans',sans-serif}.auth-intro p{margin:0;max-width:430px;font-size:17px;line-height:1.6;opacity:.92}
-  .auth-panel{padding:42px}.auth-tabs{display:flex;gap:8px;margin-bottom:26px;padding:4px;border-radius:12px;background:#f1f3f4}
+  .auth-panel{padding:42px;max-height:calc(100vh - 64px);overflow:auto}.auth-tabs{display:flex;gap:8px;margin-bottom:26px;padding:4px;border-radius:12px;background:#f1f3f4}
   .auth-tab{flex:1;border:0;padding:10px;border-radius:9px;color:var(--text-secondary);background:transparent;font-weight:600;cursor:pointer}
   .auth-tab.active{color:var(--primary);background:#fff;box-shadow:0 1px 4px rgba(60,64,67,.18)}
   .auth-form{display:grid;gap:15px}.auth-form h2{margin:0;font:600 24px 'Google Sans',sans-serif}.auth-form p{margin:-7px 0 4px;color:var(--text-secondary)}
+  .onboarding-intro{display:flex;gap:12px;padding:14px;border:1px solid #d7e5ff;border-radius:14px;background:#f5f9ff;color:#3c4043;font-size:13px;line-height:1.5}.onboarding-intro strong{display:block;margin-bottom:3px;color:#174ea6}
+  .onboarding-group{display:grid;gap:12px;padding-top:4px}.onboarding-group-title{font-size:12px;font-weight:700;color:#5f6368;text-transform:uppercase;letter-spacing:.06em}
+  .optional-fields{display:grid;gap:12px;padding:14px;border:1px solid #e4e8f0;border-radius:14px;background:#fafbff}.optional-fields summary{cursor:pointer;font-weight:600;color:#315da8}.optional-fields[open] summary{margin-bottom:12px}
+  .onboarding-style{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.onboarding-style label{padding:11px 8px;border:1px solid #dfe3eb;border-radius:11px;text-align:center;cursor:pointer;font-size:13px}.onboarding-style label:has(input:checked){border-color:#1a73e8;background:#f3f7ff;color:#174ea6}.onboarding-style input{display:block;margin:0 auto 6px}
   .auth-error{min-height:20px;color:var(--danger);font-size:13px}body.logged-out>header,body.logged-out>.app-shell{display:none}body:not(.logged-out)>.auth-page{display:none}
   .company-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}.company-card{padding:20px;border:1px solid var(--border);border-radius:14px;background:#fff}
   .company-card h3{margin:0 0 8px;font:600 18px 'Google Sans',sans-serif}.company-meta{color:var(--text-secondary);font-size:13px;line-height:1.7}
@@ -933,11 +949,28 @@
         <div class="auth-error" data-auth-error></div><button class="primary-button" type="submit">Ingresar</button>
       </form>
       <form class="auth-form" id="registerForm" hidden>
-        <h2>Registra tu negocio</h2><p>Tu cuenta será la administradora del negocio.</p>
+        <h2>Conozcámonos</h2>
+        <div class="onboarding-intro"><span aria-hidden="true">🤖</span><div><strong>Soy tu asistente de IA.</strong>Te haré unas preguntas breves para crear tu negocio. Los campos marcados como opcionales se pueden completar más adelante.</div></div>
+        <div class="onboarding-group"><div class="onboarding-group-title">Datos obligatorios</div>
         <label class="field-label">Nombre del negocio<input class="wide-input" name="businessName" minlength="2" maxlength="120" required></label>
         <label class="field-label">Usuario<input class="wide-input" name="username" minlength="3" maxlength="40" autocomplete="username" required></label>
         <label class="field-label">Contraseña<input class="wide-input" name="password" type="password" minlength="8" autocomplete="new-password" required></label>
-        <div class="auth-error" data-auth-error></div><button class="primary-button" type="submit">Crear cuenta</button>
+        <div class="field-label">¿Cómo quieres que hable el asistente?</div>
+        <div class="onboarding-style" role="radiogroup" aria-label="Estilo de comunicación obligatorio">
+          <label><input type="radio" name="communicationStyle" value="formal" required>Formal</label>
+          <label><input type="radio" name="communicationStyle" value="semiformal" required>Semiformal</label>
+          <label><input type="radio" name="communicationStyle" value="friend" required>Amigo</label>
+        </div></div>
+        <details class="optional-fields"><summary>Información opcional</summary>
+          <label class="field-label">Dirección<textarea class="wide-input" name="address" maxlength="300"></textarea></label>
+          <label class="field-label">Instrucciones para llegar<textarea class="wide-input" name="arrivalInstructions" maxlength="1000"></textarea></label>
+          <label class="field-label">Política de cancelación<textarea class="wide-input" name="cancellationPolicy" maxlength="1000"></textarea></label>
+          <label class="field-label">Notas generales<textarea class="wide-input" name="generalNotes" maxlength="1000"></textarea></label>
+          <label class="field-label">Métodos de pago (separados por coma)<input class="wide-input" name="paymentMethods" maxlength="1000"></label>
+          <label class="field-label">PDF con información relevante<input class="wide-input" name="knowledgePdf" type="file" accept=".pdf,application/pdf"></label>
+          <div class="field-help">Si quieres, puedes enviar un PDF de hasta 2 MB. No es obligatorio.</div>
+        </details>
+        <div class="auth-error" data-auth-error></div><button class="primary-button" type="submit">Registrar negocio</button>
       </form>
     </div>
   </div>
@@ -1201,13 +1234,21 @@
         </div>
         <form id="aiModeForm">
           <div class="ai-form-body">
+          <div class="ai-mode-section onboarding-switch-row">
+            <div class="onboarding-switch-copy"><div class="ai-mode-eyebrow">Modo onboarding</div><h3>Activar onboarding del bot</h3><p id="onboardingModeDescription">Actívalo cuando quieras probar el flujo guiado de registro y apágalo para volver al funcionamiento normal.</p></div>
+            <label class="mode-switch" title="Activar o desactivar onboarding"><input id="onboardingEnabled" type="checkbox" aria-describedby="onboardingModeDescription"><span class="mode-switch-track" aria-hidden="true"></span></label>
+          </div>
+          <div class="ai-mode-section onboarding-status" hidden>
+            <div class="onboarding-status-icon" aria-hidden="true">✓</div>
+            <div><div class="ai-mode-eyebrow">Modo onboarding</div><h3>Tu asistente ya conoce lo esencial</h3><p>Se presentó como asistente de IA, creó la cuenta del negocio y guardó el estilo de comunicación elegido. Puedes ajustar aquí la información opcional o agregar documentos cuando quieras.</p><span class="onboarding-badge">Onboarding completado</span></div>
+          </div>
           <div class="ai-mode-section">
             <div class="ai-mode-eyebrow">Rol del asistente</div>
             <h3>¿A quién asistirá?</h3>
             <p>Selecciona el nivel de acceso y las tareas que podrá realizar.</p>
             <div class="role-switch" role="radiogroup" aria-label="Rol del asistente">
-              <label class="role-option"><input type="radio" name="aiMode" value="client" checked />Atención al cliente</label>
-              <label class="role-option"><input type="radio" name="aiMode" value="owner" />Asistente del dueño</label>
+              <label class="role-option"><input type="radio" name="aiMode" value="client" />Atención al cliente</label>
+              <label class="role-option"><input type="radio" name="aiMode" value="owner" checked />Asistente del dueño</label>
             </div>
             <div class="ai-mode-detail" id="aiModeDetail"></div>
           </div>
@@ -1518,6 +1559,7 @@
   const aiModeForm = document.getElementById('aiModeForm');
   const aiModeDetail = document.getElementById('aiModeDetail');
   const aiModeMessage = document.getElementById('aiModeMessage');
+  const onboardingEnabled = document.getElementById('onboardingEnabled');
   const communicationStylePreviewLabel = document.getElementById('communicationStylePreviewLabel');
   const communicationStylePreviewMessage = document.getElementById('communicationStylePreviewMessage');
   const knowledgeFile = document.getElementById('knowledgeFile');
@@ -1731,6 +1773,7 @@
 
   function renderSettingsForm(settings) {
     const profile = settings.businessProfile || {};
+    onboardingEnabled.checked = settings.onboardingEnabled === true;
     appointmentDuration.value = settings.appointmentDurationMinutes;
     businessTimezone.value = settings.businessTimezone || 'America/Guayaquil';
     slotInterval.value = settings.slotIntervalMinutes || 15;
@@ -1817,7 +1860,8 @@
 
   function readSettingsForm() {
     return {
-      aiMode: currentSettings?.aiMode || 'client',
+      aiMode: currentSettings?.aiMode || 'owner',
+      onboardingEnabled: currentSettings?.onboardingEnabled === true,
       appointmentDurationMinutes: Number(appointmentDuration.value),
       businessTimezone: businessTimezone.value.trim(),
       slotIntervalMinutes: Number(slotInterval.value),
@@ -1918,8 +1962,8 @@
     });
   }
 
-  async function uploadKnowledgeDocument() {
-    const file = knowledgeFile.files[0];
+  async function uploadKnowledgeDocument(selectedFile = knowledgeFile.files[0], { refresh = true } = {}) {
+    const file = selectedFile;
     if (!file) throw new Error('Selecciona un documento.');
     const mimeType = mimeTypeForFile(file);
     const isPdf = mimeType === 'application/pdf';
@@ -1932,8 +1976,8 @@
       body: JSON.stringify({ name: file.name, mimeType, content: isPdf ? await fileAsBase64(file) : await file.text() }),
     });
     await parseApiResponse(response, 'No se pudo subir el documento.');
-    knowledgeFile.value = '';
-    await loadKnowledgeDocuments();
+    if (file === knowledgeFile.files[0]) knowledgeFile.value = '';
+    if (refresh) await loadKnowledgeDocuments();
   }
 
   async function removeKnowledgeDocument(id) {
@@ -2669,9 +2713,32 @@
   });
   expensePaymentMethod.addEventListener('change', updateExpenseTransferFields);
   appointmentPaymentMethod.addEventListener('change', updateAppointmentTransferFields);
-  registerForm.addEventListener('submit', (event) => {
+  registerForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    submitAuth(registerForm, '/api/auth/register');
+    const errorElement = registerForm.querySelector('[data-auth-error]');
+    const submit = registerForm.querySelector('[type="submit"]');
+    const pdf = registerForm.elements.knowledgePdf.files[0];
+    errorElement.textContent = '';
+    submit.disabled = true;
+    try {
+      const fields = Object.fromEntries(new FormData(registerForm));
+      delete fields.knowledgePdf;
+      const response = await apiFetch('/api/auth/register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields),
+      });
+      await parseApiResponse(response, 'No se pudo registrar el negocio.');
+      if (pdf) {
+        try {
+          await uploadKnowledgeDocument(pdf, { refresh: false });
+        } catch (uploadError) {
+          window.alert(`El negocio fue creado, pero el PDF no pudo cargarse: ${uploadError.message}`);
+        }
+      }
+      window.location.reload();
+    } catch (error) {
+      errorElement.textContent = error.message;
+      submit.disabled = false;
+    }
   });
   adminSession.addEventListener('click', async () => {
     await apiFetch('/api/auth/logout', { method: 'POST' });
@@ -2765,12 +2832,31 @@
     if (event.target.name === 'aiMode') renderAiMode(event.target.value);
     if (event.target.name === 'communicationStyle') renderCommunicationStylePreview(event.target.value);
   });
+  onboardingEnabled.addEventListener('change', async () => {
+    const enabled = onboardingEnabled.checked;
+    onboardingEnabled.disabled = true;
+    aiModeMessage.textContent = enabled ? 'Activando modo onboarding...' : 'Desactivando modo onboarding...';
+    try {
+      await saveSettings({ ...currentSettings, onboardingEnabled: enabled });
+      aiModeMessage.textContent = enabled ? 'Modo onboarding activado.' : 'Modo onboarding desactivado.';
+    } catch (error) {
+      onboardingEnabled.checked = !enabled;
+      aiModeMessage.textContent = error.message;
+    } finally {
+      onboardingEnabled.disabled = false;
+    }
+  });
   aiModeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     aiModeMessage.textContent = 'Guardando...';
     try {
       const mode = new FormData(aiModeForm).get('aiMode');
-      await saveSettings({ ...currentSettings, aiMode: mode, businessProfile: readBusinessProfileForm() });
+      await saveSettings({
+        ...currentSettings,
+        aiMode: mode,
+        onboardingEnabled: onboardingEnabled.checked,
+        businessProfile: readBusinessProfileForm(),
+      });
       renderAiMode();
       aiModeMessage.textContent = 'Configuración de IA actualizada.';
     } catch (error) {

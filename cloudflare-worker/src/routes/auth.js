@@ -1,5 +1,7 @@
 import { hashPassword, verifyPassword } from '../auth/passwords.js';
 import { clearSessionCookie, createSession, deleteSession, getSessionUser } from '../auth/sessions.js';
+import { DEFAULT_BUSINESS_SETTINGS } from '../config/constants.js';
+import { normalizeBusinessSettings } from '../domain/validation.js';
 import { jsonResponse } from '../utils/responses.js';
 import { listModeratorCompanies } from './moderator.js';
 
@@ -60,23 +62,55 @@ export async function handleAuthApi(request, env, url) {
 		const businessName = cleanText(body.businessName, 120);
 		const username = cleanText(body.username, 40);
 		const password = typeof body.password === 'string' ? body.password : '';
+		const communicationStyle = cleanText(body.communicationStyle, 20);
 		if (businessName.length < 2 || !USERNAME_PATTERN.test(username) || password.length < 8) {
 			return jsonResponse({
 				ok: false,
 				error: 'Ingresa un negocio válido, un usuario de al menos 3 caracteres y una contraseña de al menos 8 caracteres.',
 			}, 400);
 		}
+		if (!['formal', 'semiformal', 'friend'].includes(communicationStyle)) {
+			return jsonResponse({ ok: false, error: 'Elige si el asistente hablará de forma formal, semiformal o como amigo.' }, 400);
+		}
+		const settings = normalizeBusinessSettings({
+			...DEFAULT_BUSINESS_SETTINGS,
+			aiMode: 'owner',
+			businessProfile: {
+				...DEFAULT_BUSINESS_SETTINGS.businessProfile,
+				businessName,
+				communicationStyle,
+				address: cleanText(body.address, 300),
+				arrivalInstructions: cleanText(body.arrivalInstructions, 1_000),
+				cancellationPolicy: cleanText(body.cancellationPolicy, 1_000),
+				generalNotes: cleanText(body.generalNotes, 1_000),
+				acceptedPaymentMethods: cleanText(body.paymentMethods, 1_000)
+					.split(',').map((method) => method.trim()).filter(Boolean),
+			},
+		});
 		const credentials = await hashPassword(password);
+		const { businessProfile, ...schedule } = settings;
 		try {
-			const company = await env.DB.prepare(
-				'INSERT INTO companies (name) VALUES (?1) RETURNING id, name',
-			).bind(businessName).first();
-			const user = await env.DB.prepare(
+			await env.DB.batch([
+				env.DB.prepare('INSERT INTO companies (name) VALUES (?1)').bind(businessName),
+				env.DB.prepare(
 				`INSERT INTO users (company_id, username, password_hash, password_salt, password_iterations, role)
-				 VALUES (?1, ?2, ?3, ?4, ?5, 'admin') RETURNING id, username, role, company_id`,
-			).bind(company.id, username, credentials.hash, credentials.salt, credentials.iterations).first();
+				 VALUES ((SELECT id FROM companies WHERE name = ?1 COLLATE NOCASE), ?2, ?3, ?4, ?5, 'admin')`,
+				).bind(businessName, username, credentials.hash, credentials.salt, credentials.iterations),
+				env.DB.prepare(
+					`INSERT INTO settings (key, value)
+					 VALUES ('company:' || (SELECT id FROM companies WHERE name = ?1 COLLATE NOCASE) || ':schedule', ?2)`,
+				).bind(businessName, JSON.stringify(schedule)),
+				env.DB.prepare(
+					`INSERT INTO settings (key, value)
+					 VALUES ('company:' || (SELECT id FROM companies WHERE name = ?1 COLLATE NOCASE) || ':business_profile', ?2)`,
+				).bind(businessName, JSON.stringify(businessProfile)),
+			]);
+			const user = await env.DB.prepare(
+				`SELECT users.id, users.username, users.role, users.company_id, companies.name AS company_name
+				 FROM users JOIN companies ON companies.id = users.company_id WHERE users.username = ?1 COLLATE NOCASE`,
+			).bind(username).first();
 			const session = await createSession(env.DB, user.id);
-			return jsonResponse({ ok: true, user: publicUser({ ...user, company_name: company.name }) }, 201, {
+			return jsonResponse({ ok: true, user: publicUser(user) }, 201, {
 				'Set-Cookie': session.cookie,
 			});
 		} catch (error) {
