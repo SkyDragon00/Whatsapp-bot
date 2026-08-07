@@ -10,6 +10,31 @@ function geminiResponse(parts) {
 }
 
 describe('bucle de herramientas de Gemini', () => {
+	it('solo anuncia el alta de onboarding cuando la herramienta confirma la escritura', async () => {
+		const call = geminiResponse([{ functionCall: {
+			name: 'register_business_from_onboarding',
+			args: { business_name: 'Peludos Amigos', username: 'Ana', password: 'temporal-123', communication_style: 'friend' },
+		} }]);
+		const successFetch = vi.fn().mockResolvedValue(call);
+		const success = await runGeminiAgent({
+			apiKey: 'test-key', systemPrompt: 'Prompt', userMessage: 'Listo, todo correcto', toolContext: {},
+			fetchImpl: successFetch,
+			executeToolResult: vi.fn().mockResolvedValue({ ok: true, data: { businessName: 'Peludos Amigos', username: 'Ana' } }),
+		});
+		expect(success).toContain('fueron creados correctamente');
+		expect(successFetch).toHaveBeenCalledTimes(1);
+
+		const failure = await runGeminiAgent({
+			apiKey: 'test-key', systemPrompt: 'Prompt', userMessage: 'Listo, todo correcto', toolContext: {},
+			fetchImpl: vi.fn().mockImplementation(() => Promise.resolve(geminiResponse([{ functionCall: {
+				name: 'register_business_from_onboarding', args: {},
+			} }]))),
+			executeToolResult: vi.fn().mockResolvedValue({ ok: false, error: { message: 'Ese usuario ya existe.' } }),
+		});
+		expect(failure).toContain('No pude crear la cuenta');
+		expect(failure).toContain('todavía no intentes iniciar sesión');
+	});
+
 	it('integra usuario, list_services, functionResponse y respuesta final en orden', async () => {
 		const fetchImpl = vi
 			.fn()

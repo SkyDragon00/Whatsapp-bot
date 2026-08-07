@@ -53,6 +53,7 @@ function publicUser(user) {
 		role: user.role,
 		companyId: user.company_id ?? null,
 		companyName: user.company_name ?? null,
+		mustChangePassword: Boolean(user.must_change_password),
 	};
 }
 
@@ -136,6 +137,26 @@ export async function handleAuthApi(request, env, url) {
 		}
 		const session = await createSession(env.DB, user.id);
 		return jsonResponse({ ok: true, user: publicUser(user) }, 200, { 'Set-Cookie': session.cookie });
+	}
+
+	if (request.method === 'POST' && url.pathname === '/api/auth/change-password') {
+		const sessionUser = await getSessionUser(request, env.DB);
+		if (!sessionUser) return jsonResponse({ ok: false, error: 'No autorizado.' }, 401);
+		const body = await readJson(request);
+		const password = typeof body.password === 'string' ? body.password : '';
+		const confirmation = typeof body.confirmation === 'string' ? body.confirmation : '';
+		if (password.length < 8) {
+			return jsonResponse({ ok: false, error: 'La nueva contraseña debe tener al menos 8 caracteres.' }, 400);
+		}
+		if (password !== confirmation) {
+			return jsonResponse({ ok: false, error: 'Las contraseñas no coinciden.' }, 400);
+		}
+		const credentials = await hashPassword(password);
+		await env.DB.prepare(
+			`UPDATE users SET password_hash = ?1, password_salt = ?2, password_iterations = ?3,
+			 must_change_password = 0 WHERE id = ?4`,
+		).bind(credentials.hash, credentials.salt, credentials.iterations, sessionUser.id).run();
+		return jsonResponse({ ok: true });
 	}
 
 	if (request.method === 'GET' && url.pathname === '/api/auth/me') {

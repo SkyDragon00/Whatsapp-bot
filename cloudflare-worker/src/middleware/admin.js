@@ -103,6 +103,13 @@ export async function withAdminProtection(request, env, handler, options = {}) {
 
 	const authorization = await authorizeAdminRequest(request, env);
 	if (!authorization.ok) return withHeaders(authorization.response, headers);
+	if (authorization.user?.must_change_password) {
+		return withHeaders(jsonResponse({
+			ok: false,
+			error: 'Debes cambiar tu contraseña antes de continuar.',
+			code: 'PASSWORD_CHANGE_REQUIRED',
+		}, 403), headers);
+	}
 	if (options.role && authorization.user?.role !== options.role) {
 		return withHeaders(jsonResponse({ ok: false, error: 'No tienes permiso para acceder a esta página.', code: 'FORBIDDEN' }, 403), headers);
 	}

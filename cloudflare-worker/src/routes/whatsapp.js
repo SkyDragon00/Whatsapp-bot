@@ -139,13 +139,14 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 	const responseText = await runGeminiAgent({
 		apiKey: env.GEMINI_API_KEY,
 		systemPrompt: buildSystemPrompt({ settings, knowledgeDocuments, now }),
-		toolDeclarations: toolDeclarationsForMode(settings.aiMode),
+		toolDeclarations: toolDeclarationsForMode(settings.aiMode, settings.onboardingEnabled),
 		history,
 		userMessage: text,
 		diagnostics: env.GEMINI_DIAGNOSTICS === 'true',
 		toolContext: {
 			env,
 			now,
+			userMessage: text,
 			// Las tablas existentes conservan estos nombres por compatibilidad con Telegram.
 			telegram: { chatId: recipient, userId: recipient, username: message.profileName },
 			sourceUpdateId: `whatsapp:${message.id}`,

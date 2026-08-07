@@ -10,13 +10,14 @@ import {
 	getCustomerAppointments,
 	listAppointmentsInRange,
 } from '../repositories/appointments-repository.js';
-import { getBusinessSettings } from '../repositories/settings-repository.js';
+import { getBotBusinessSettings, getBusinessSettings, updateBotCommunicationStyle } from '../repositories/settings-repository.js';
 import { createOwnerChatPayment } from '../repositories/payments-repository.js';
 import { isTransfer } from '../domain/banking.js';
 import { getExpenseSummary, getFinancialSummary, getOutstandingBalances } from '../repositories/financial-repository.js';
 import { listServices, resolveService } from '../repositories/services-repository.js';
 import { logError } from '../utils/logging.js';
 import { ALLOWED_TOOL_NAMES } from './tool-definitions.js';
+import { registerOnboardingBusiness } from '../onboarding/register-business.js';
 
 function requireArguments(value) {
 	if (value === undefined || value === null) return {};
@@ -33,6 +34,12 @@ function assertAllowedKeys(args, allowedKeys) {
 
 function assertNoArguments(args) {
 	assertAllowedKeys(args, []);
+}
+
+export function isExplicitConfirmation(message) {
+	const normalized = String(message ?? '').trim().toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+	if (/\b(no|incorrecto|aun no|todavia no)\b/.test(normalized)) return false;
+	return /\b(si|confirmo|correcto|esta bien|todo esta bien|de acuerdo|adelante|procede|listo)\b/.test(normalized);
 }
 
 function serializeService(service) {
@@ -224,9 +231,31 @@ export async function executeTool(name, rawArgs, context) {
 	const args = requireArguments(rawArgs);
 
 	switch (name) {
+		case 'register_business_from_onboarding': {
+			assertAllowedKeys(args, ['business_name', 'username', 'password', 'communication_style', 'address', 'arrival_instructions', 'cancellation_policy', 'general_notes', 'payment_methods']);
+			const settings = await getBotBusinessSettings(context.env.DB);
+			if (!settings.onboardingEnabled) throw new ValidationError('El modo onboarding está desactivado.');
+			if (!isExplicitConfirmation(context.userMessage)) {
+				throw new ValidationError('Antes de registrar, muestra el resumen y espera una confirmación explícita del usuario.');
+			}
+			return registerOnboardingBusiness(context.env.DB, args);
+		}
 		case 'get_business_settings': {
 			assertNoArguments(args);
 			return getBusinessSettings(context.env.DB);
+		}
+		case 'set_communication_style': {
+			assertAllowedKeys(args, ['style']);
+			const settings = await getBotBusinessSettings(context.env.DB);
+			if (settings.aiMode !== 'owner') {
+				throw new ValidationError('Cambiar la personalidad solo está disponible en modo dueño.');
+			}
+			const style = requireString(args.style, 'El estilo de comunicación', { max: 20 });
+			if (!['formal', 'semiformal', 'friend'].includes(style)) {
+				throw new ValidationError('El estilo debe ser formal, semiformal o amigo.');
+			}
+			const updated = await updateBotCommunicationStyle(context.env.DB, style);
+			return { communicationStyle: updated.businessProfile.communicationStyle };
 		}
 		case 'list_services': {
 			assertNoArguments(args);

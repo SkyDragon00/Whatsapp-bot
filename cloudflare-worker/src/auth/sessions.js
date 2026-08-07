@@ -34,7 +34,8 @@ export async function getSessionUser(request, db) {
 	const token = readCookie(request, SESSION_COOKIE);
 	if (!token) return null;
 	return db.prepare(
-		`SELECT users.id, users.username, users.role, users.company_id, companies.name AS company_name
+		`SELECT users.id, users.username, users.role, users.company_id, users.must_change_password,
+		        companies.name AS company_name
 		 FROM sessions
 		 JOIN users ON users.id = sessions.user_id
 		 LEFT JOIN companies ON companies.id = users.company_id

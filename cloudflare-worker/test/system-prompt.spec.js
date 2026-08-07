@@ -16,10 +16,10 @@ describe('prompt del asistente', () => {
 	});
 
 	it.each([
-		['formal', 'ESTILO FORMAL', 'Usa "usted"'],
-		['semiformal', 'ESTILO SEMIFORMAL', 'Puedes usar "tú"'],
-		['friend', 'ESTILO AMIGO', '"preciosa"'],
-	])('aplica el estilo de comunicacion %s', (communicationStyle, label, instruction) => {
+		['formal', 'ESTILO FORMAL', 'Usa "usted"', 'No uses emojis bajo ninguna circunstancia'],
+		['semiformal', 'ESTILO SEMIFORMAL', 'Puedes usar "tú"', 'nunca uses más de un emoji por mensaje'],
+		['friend', 'ESTILO AMIGO', '"preciosa"', 'incluye varios emojis apropiados en cada mensaje'],
+	])('aplica el estilo de comunicacion %s', (communicationStyle, label, instruction, emojiInstruction) => {
 		const settings = {
 			...DEFAULT_BUSINESS_SETTINGS,
 			businessProfile: { ...DEFAULT_BUSINESS_SETTINGS.businessProfile, communicationStyle },
@@ -27,6 +27,7 @@ describe('prompt del asistente', () => {
 		const prompt = buildSystemPrompt({ settings });
 		expect(prompt).toContain(label);
 		expect(prompt).toContain(instruction);
+		expect(prompt).toContain(emojiInstruction);
 	});
 
 	it('explica las reglas fiscales de pagos en modo dueño', () => {
@@ -34,6 +35,7 @@ describe('prompt del asistente', () => {
 			settings: { ...DEFAULT_BUSINESS_SETTINGS, aiMode: 'owner' },
 		});
 		expect(prompt).toContain('find_customer_appointments');
+		expect(prompt).toContain('set_communication_style');
 		expect(prompt).toContain('RUC 9999999999999');
 		expect(prompt).toContain('mayor de $50');
 		expect(prompt).toContain('get_financial_summary');

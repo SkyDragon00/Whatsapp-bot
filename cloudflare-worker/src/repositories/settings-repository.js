@@ -21,16 +21,58 @@ export async function getBotBusinessSettings(db) {
 	const result = await db.prepare(
 		"SELECT key, value FROM settings WHERE key LIKE 'company:%:schedule' ORDER BY key",
 	).all();
+	let onlyCompanyId = null;
 	for (const row of result.results) {
 		try {
-			if (JSON.parse(row.value)?.onboardingEnabled !== true) continue;
 			const match = /^company:(\d+):schedule$/.exec(row.key);
-			if (match) return getBusinessSettings(db, { companyId: Number(match[1]) });
+			if (!match) continue;
+			onlyCompanyId = Number(match[1]);
+			if (JSON.parse(row.value)?.onboardingEnabled === true) {
+				return getBusinessSettings(db, { companyId: onlyCompanyId });
+			}
 		} catch {
 			// Ignora configuraciones heredadas o dañadas y conserva el fallback global.
 		}
 	}
+	if (result.results.length === 1 && onlyCompanyId !== null) {
+		return getBusinessSettings(db, { companyId: onlyCompanyId });
+	}
 	return getBusinessSettings(db);
+}
+
+export async function updateBotCommunicationStyle(db, communicationStyle) {
+	const result = await db.prepare(
+		"SELECT key, value FROM settings WHERE key LIKE 'company:%:schedule' ORDER BY key",
+	).all();
+	let onlyCompanyId = null;
+	for (const row of result.results) {
+		try {
+			const match = /^company:(\d+):schedule$/.exec(row.key);
+			if (!match) continue;
+			const companyId = Number(match[1]);
+			onlyCompanyId = companyId;
+			if (JSON.parse(row.value)?.onboardingEnabled !== true) continue;
+			const settings = await getBusinessSettings(db, { companyId });
+			return saveBusinessSettings(db, {
+				...settings,
+				businessProfile: { ...settings.businessProfile, communicationStyle },
+			}, { companyId });
+		} catch {
+			// Continúa buscando una empresa activa con configuración válida.
+		}
+	}
+	if (result.results.length === 1 && onlyCompanyId !== null) {
+		const settings = await getBusinessSettings(db, { companyId: onlyCompanyId });
+		return saveBusinessSettings(db, {
+			...settings,
+			businessProfile: { ...settings.businessProfile, communicationStyle },
+		}, { companyId: onlyCompanyId });
+	}
+	const settings = await getBusinessSettings(db);
+	return saveBusinessSettings(db, {
+		...settings,
+		businessProfile: { ...settings.businessProfile, communicationStyle },
+	});
 }
 
 export async function saveBusinessSettings(db, input, { companyId = null } = {}) {

@@ -1359,6 +1359,19 @@
   </main>
 </div>
 
+<div class="modal-overlay" id="passwordChangeOverlay">
+  <div class="modal-card">
+    <form class="modal-body auth-form" id="passwordChangeForm">
+      <h2 class="modal-title">Protege tu cuenta</h2>
+      <p>Esta cuenta fue creada por chat. Antes de continuar, establece una contraseña nueva que solo tú conozcas.</p>
+      <label class="field-label">Nueva contraseña<input class="wide-input" name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+      <label class="field-label">Confirmar contraseña<input class="wide-input" name="confirmation" type="password" minlength="8" autocomplete="new-password" required></label>
+      <div class="auth-error" id="passwordChangeError" role="alert"></div>
+      <button class="primary-button" type="submit">Cambiar contraseña y continuar</button>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="customerOverlay">
   <div class="modal-card">
     <div class="modal-header"><button class="modal-close" id="customerClose" aria-label="Cerrar">&times;</button></div>
@@ -1634,6 +1647,9 @@
   const customerOverlay = document.getElementById('customerOverlay');
   const customerForm = document.getElementById('customerForm');
   const customerFormError = document.getElementById('customerFormError');
+  const passwordChangeOverlay = document.getElementById('passwordChangeOverlay');
+  const passwordChangeForm = document.getElementById('passwordChangeForm');
+  const passwordChangeError = document.getElementById('passwordChangeError');
   const createCustomer = document.getElementById('createCustomer');
   const customerFormTitle = document.getElementById('customerFormTitle');
 
@@ -1822,7 +1838,7 @@
     settingsError.textContent = '';
     settingsOverlay.classList.add('open');
     try {
-      if (!currentSettings) await loadSettings();
+      await loadSettings();
       await loadServices();
       renderSettingsForm(currentSettings);
     } catch (error) {
@@ -2652,7 +2668,7 @@
       }
     }
     if (view === 'ai-settings') {
-      if (!currentSettings) await loadSettings();
+      await loadSettings();
       aiModeMessage.textContent = '';
       renderSettingsForm(currentSettings);
       renderAiMode();
@@ -2803,6 +2819,24 @@
       submit.disabled = false;
     }
   });
+  passwordChangeForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = passwordChangeForm.querySelector('[type="submit"]');
+    passwordChangeError.textContent = '';
+    submit.disabled = true;
+    try {
+      const response = await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(new FormData(passwordChangeForm))),
+      });
+      await parseApiResponse(response, 'No se pudo cambiar la contraseña.');
+      window.location.reload();
+    } catch (error) {
+      passwordChangeError.textContent = error.message;
+      submit.disabled = false;
+    }
+  });
   adminSession.addEventListener('click', async () => {
     await apiFetch('/api/auth/logout', { method: 'POST' });
     window.location.reload();
@@ -2895,6 +2929,15 @@
     if (event.target.name === 'aiMode') renderAiMode(event.target.value);
     if (event.target.name === 'communicationStyle') renderCommunicationStylePreview(event.target.value);
   });
+  window.addEventListener('focus', async () => {
+    if (activeView !== 'ai-settings' || document.body.classList.contains('logged-out')) return;
+    try {
+      await loadSettings();
+      renderSettingsForm(currentSettings);
+    } catch (error) {
+      aiModeMessage.textContent = error.message;
+    }
+  });
   onboardingEnabled.addEventListener('change', async () => {
     const enabled = onboardingEnabled.checked;
     onboardingEnabled.disabled = true;
@@ -2959,6 +3002,11 @@
       initialModeratorCompanies = Array.isArray(sessionData.companies) ? sessionData.companies : null;
       document.body.classList.remove('logged-out');
       adminSession.textContent = `Salir · ${currentUser.username}`;
+      if (currentUser.mustChangePassword) {
+        passwordChangeOverlay.classList.add('open');
+        passwordChangeForm.elements.password.focus();
+        return;
+      }
       if (currentUser.role === 'super_admin') {
         moderatorNav.hidden = false;
         for (const item of navigationItems) item.hidden = item !== moderatorNav;

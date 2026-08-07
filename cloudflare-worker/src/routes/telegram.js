@@ -143,13 +143,14 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 	const responseText = await runGeminiAgent({
 		apiKey: env.GEMINI_API_KEY,
 		systemPrompt: buildSystemPrompt({ settings, knowledgeDocuments, now }),
-		toolDeclarations: toolDeclarationsForMode(settings.aiMode),
+		toolDeclarations: toolDeclarationsForMode(settings.aiMode, settings.onboardingEnabled),
 		history,
 		userMessage: text,
 		diagnostics: env.GEMINI_DIAGNOSTICS === 'true',
 		toolContext: {
 			env,
 			now,
+			userMessage: text,
 			telegram: { chatId, userId, username },
 			sourceUpdateId: identity ? `telegram:${identity}` : null,
 		},

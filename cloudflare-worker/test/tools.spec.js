@@ -1,7 +1,8 @@
 import { applyD1Migrations, env, SELF } from 'cloudflare:test';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { executeToolSafely } from '../src/ai/tools.js';
-import { saveBusinessSettings } from '../src/repositories/settings-repository.js';
+import { toolDeclarationsForMode } from '../src/ai/tool-definitions.js';
+import { getBotBusinessSettings, getBusinessSettings, saveBusinessSettings } from '../src/repositories/settings-repository.js';
 import { createService } from '../src/repositories/services-repository.js';
 
 const now = new Date('2026-07-14T00:00:00.000Z');
@@ -165,6 +166,40 @@ describe.sequential('herramientas controladas del backend', () => {
 			context(),
 		);
 		expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+	});
+
+	it('permite cambiar la personalidad desde el chat solo en modo dueño', async () => {
+		const clientTools = toolDeclarationsForMode('client').map((tool) => tool.name);
+		const ownerTools = toolDeclarationsForMode('owner').map((tool) => tool.name);
+		expect(clientTools).not.toContain('set_communication_style');
+		expect(ownerTools).toContain('set_communication_style');
+
+		const initial = await getBusinessSettings(env.DB);
+		await saveBusinessSettings(env.DB, { ...initial, aiMode: 'client' });
+		const denied = await executeToolSafely('set_communication_style', { style: 'friend' }, context());
+		expect(denied).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+
+		const current = await getBusinessSettings(env.DB);
+		await saveBusinessSettings(env.DB, { ...current, aiMode: 'owner' });
+		const changed = await executeToolSafely('set_communication_style', { style: 'friend' }, context());
+		expect(changed).toEqual({ ok: true, data: { communicationStyle: 'friend' } });
+		expect((await getBotBusinessSettings(env.DB)).businessProfile.communicationStyle).toBe('friend');
+	});
+
+	it('sincroniza el estilo con la empresa web aunque el onboarding esté desactivado', async () => {
+		const company = await env.DB.prepare("INSERT INTO companies (name) VALUES ('Empresa estilo chat') RETURNING id").first();
+		const globalSettings = await getBusinessSettings(env.DB);
+		await saveBusinessSettings(env.DB, {
+			...globalSettings,
+			aiMode: 'owner',
+			onboardingEnabled: false,
+			businessProfile: { ...globalSettings.businessProfile, communicationStyle: 'formal' },
+		}, { companyId: company.id });
+
+		const changed = await executeToolSafely('set_communication_style', { style: 'friend' }, context());
+		expect(changed).toEqual({ ok: true, data: { communicationStyle: 'friend' } });
+		expect((await getBusinessSettings(env.DB, { companyId: company.id })).businessProfile.communicationStyle).toBe('friend');
+		expect((await getBusinessSettings(env.DB)).businessProfile.communicationStyle).toBe('semiformal');
 	});
 
 	it('impide registrar pagos en modo cliente', async () => {

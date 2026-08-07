@@ -6,9 +6,45 @@ const emptyParameters = {
 
 export const TOOL_DECLARATIONS = [
 	{
+		name: 'register_business_from_onboarding',
+		description: 'Crea el negocio y su usuario administrador únicamente después de que el usuario confirme explícitamente que el resumen final es correcto.',
+		parametersJsonSchema: {
+			type: 'object',
+			properties: {
+				business_name: { type: 'string' },
+				username: { type: 'string' },
+				password: { type: 'string' },
+				communication_style: { type: 'string', enum: ['formal', 'semiformal', 'friend'] },
+				address: { type: 'string' },
+				arrival_instructions: { type: 'string' },
+				cancellation_policy: { type: 'string' },
+				general_notes: { type: 'string' },
+				payment_methods: { type: 'array', items: { type: 'string' } },
+			},
+			required: ['business_name', 'username', 'password', 'communication_style'],
+			additionalProperties: false,
+		},
+	},
+	{
 		name: 'get_business_settings',
 		description: 'Obtiene horarios, zona horaria, reglas de reserva y preferencias reales del negocio, incluidos contacto, ubicación, pagos y políticas cuando están configurados.',
 		parametersJsonSchema: emptyParameters,
+	},
+	{
+		name: 'set_communication_style',
+		description: 'Cambia y guarda la personalidad del bot. Úsala cuando el dueño pida hablar en modo formal, semiformal o amigo. Solo está disponible en modo dueño.',
+		parametersJsonSchema: {
+			type: 'object',
+			properties: {
+				style: {
+					type: 'string',
+					enum: ['formal', 'semiformal', 'friend'],
+					description: 'Personalidad solicitada: formal, semiformal o friend para modo amigo.',
+				},
+			},
+			required: ['style'],
+			additionalProperties: false,
+		},
 	},
 	{
 		name: 'list_services',
@@ -145,10 +181,13 @@ export const TOOL_DECLARATIONS = [
 
 export const ALLOWED_TOOL_NAMES = new Set(TOOL_DECLARATIONS.map((tool) => tool.name));
 
-export function toolDeclarationsForMode(aiMode) {
+export function toolDeclarationsForMode(aiMode, onboardingEnabled = false) {
+	if (onboardingEnabled) return TOOL_DECLARATIONS.filter((tool) => tool.name === 'register_business_from_onboarding');
+	const normalTools = TOOL_DECLARATIONS.filter((tool) => tool.name !== 'register_business_from_onboarding');
 	return aiMode === 'owner'
-		? TOOL_DECLARATIONS
-		: TOOL_DECLARATIONS.filter((tool) => ![
+		? normalTools
+		: normalTools.filter((tool) => ![
+			'set_communication_style',
 			'find_customer_appointments',
 			'get_outstanding_balances',
 			'get_expense_summary',

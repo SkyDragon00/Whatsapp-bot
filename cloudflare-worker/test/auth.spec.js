@@ -72,6 +72,34 @@ describe.sequential('usuarios y moderación', () => {
 		expect(await response.json()).toMatchObject({ error: expect.stringContaining('formal') });
 	});
 
+	it('obliga a reemplazar la contraseña temporal creada por chat', async () => {
+		const suffix = crypto.randomUUID().slice(0, 8);
+		const username = `forced-${suffix}`;
+		const registration = await SELF.fetch(`${ORIGIN}/api/auth/register`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				businessName: `Forzado ${suffix}`, username, password: 'temporal-123', communicationStyle: 'formal',
+			}),
+		});
+		const registered = await registration.json();
+		await env.DB.prepare('UPDATE users SET must_change_password = 1 WHERE id = ?1').bind(registered.user.id).run();
+		const login = await SELF.fetch(`${ORIGIN}/api/auth/login`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ username, password: 'temporal-123' }),
+		});
+		expect(await login.clone().json()).toMatchObject({ user: { mustChangePassword: true } });
+		const changed = await SELF.fetch(`${ORIGIN}/api/auth/change-password`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: sessionCookie(login) },
+			body: JSON.stringify({ password: 'definitiva-456', confirmation: 'definitiva-456' }),
+		});
+		expect(changed.status).toBe(200);
+		const relogin = await SELF.fetch(`${ORIGIN}/api/auth/login`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ username, password: 'definitiva-456' }),
+		});
+		expect(await relogin.json()).toMatchObject({ user: { mustChangePassword: false } });
+	});
+
 	it('reserva la lista de empresas para el super admin', async () => {
 		const adminLogin = await SELF.fetch(`${ORIGIN}/api/auth/login`, {
 			method: 'POST',

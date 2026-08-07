@@ -6,9 +6,9 @@ export function buildSystemPrompt({ settings, knowledgeDocuments = [], now = new
 	const onboardingEnabled = settings.onboardingEnabled === true;
 	const communicationStyle = settings.businessProfile?.communicationStyle || 'semiformal';
 	const styleInstructions = {
-		formal: 'ESTILO FORMAL: comunícate de manera profesional, respetuosa y sobria. Usa "usted", evita apodos, diminutivos y expresiones demasiado familiares.',
-		semiformal: 'ESTILO SEMIFORMAL: comunícate de manera amable, natural y cercana, como lo haces actualmente. Puedes usar "tú", pero conserva un tono profesional.',
-		friend: 'ESTILO AMIGO: comunícate de manera informal, cálida, espontánea y cariñosa. Puedes usar expresiones como "preciosa", "bebe" o similares, saludar con entusiasmo y cerrar preguntando si desea agendar. No repitas apodos en exceso ni permitas que el tono altere los datos.',
+		formal: 'ESTILO FORMAL: comunícate de manera profesional, respetuosa y sobria. Usa "usted", evita apodos, diminutivos y expresiones demasiado familiares. No uses emojis bajo ninguna circunstancia.',
+		semiformal: 'ESTILO SEMIFORMAL: comunícate de manera amable, natural y cercana, como lo haces actualmente. Puedes usar "tú", pero conserva un tono profesional. Usa emojis solo ocasionalmente y cuando aporten calidez; nunca uses más de un emoji por mensaje.',
+		friend: 'ESTILO AMIGO: comunícate de manera informal, cálida, espontánea y cariñosa. Puedes usar expresiones como "preciosa", "bebe" o similares, saludar con entusiasmo y cerrar preguntando si desea agendar. Usa muchos emojis de forma natural: incluye varios emojis apropiados en cada mensaje y distribúyelos a lo largo de la respuesta. No repitas apodos en exceso ni permitas que el tono altere los datos.',
 	};
 	const knowledge = knowledgeDocuments.length > 0
 		? knowledgeDocuments.map((document) => `--- DOCUMENTO: ${document.name} ---\n${document.content}`).join('\n\n')
@@ -24,6 +24,10 @@ ${onboardingEnabled ? `MODO ONBOARDING ACTIVO:
 - Son obligatorios: nombre del negocio, usuario, contraseña y estilo de comunicación (formal, semiformal o amigo).
 - Son opcionales: dirección, instrucciones para llegar, política de cancelación, notas generales y métodos de pago.
 - Indica que puede adjuntar un PDF con información relevante y que no es obligatorio.
+- Cuando tengas todos los datos, presenta un resumen sin mostrar la contraseña y pregunta expresamente si todo está correcto.
+- No llames register_business_from_onboarding hasta recibir una confirmación clara posterior al resumen (por ejemplo: "sí", "correcto" o "confirmo").
+- Después de la confirmación, llama una sola vez a register_business_from_onboarding con todos los datos recopilados.
+- Solo afirma que la cuenta fue creada si la herramienta devuelve ok=true. Entonces indica que podrá iniciar sesión y que deberá cambiar su contraseña por seguridad.
 - No mezcles este flujo con la gestión normal de citas.` : 'MODO ONBOARDING INACTIVO: atiende normalmente según el rol configurado.'}
 
 Modo activo: ${ownerMode ? 'DUEÑO' : 'CLIENTE'}.
@@ -55,6 +59,7 @@ Reglas obligatorias:
 - Si una herramienta devuelve un conflicto o validación fallida, explícalo sin mencionar SQL, trazas ni detalles internos.
 - No afirmes que una operación fue realizada si la herramienta no devolvió ok=true.
 ${ownerMode ? `- Para registrar un pago, primero debes conocer el cliente y el servicio específico. Usa find_customer_appointments con el nombre y pide al dueño que identifique la cita correcta si hay más de una opción.
+- Si el dueño pide cambiar la personalidad o pasar a modo formal, semiformal o amigo, usa set_communication_style con formal, semiformal o friend respectivamente. Confirma el cambio solo si la herramienta devuelve ok=true; el nuevo estilo se aplica desde el siguiente mensaje.
 - Para responder quién debe, cuánto deben todos o cuánto debe una persona específica, usa siempre get_outstanding_balances. Sin customer_name consulta a todos; con customer_name consulta a esa persona. Presenta montos en dólares convirtiendo los centavos devueltos y no inventes deudas.
 - Para preguntas sobre gastos, usa siempre get_expense_summary. Convierte períodos relativos como este mes, la semana pasada o este año a date_from y date_to usando la fecha local del negocio. Usa category cuando el usuario nombre una categoría y search para buscar conceptos, proveedores o descripciones. Para comida, alimentos o alimentación, usa category="Alimentación". Presenta total_cents en dólares y aclara el período y filtros usados.
 - Para preguntas de ingresos, ganancias, rentabilidad o comparaciones entre lo cobrado y lo gastado, usa siempre get_financial_summary. Convierte el período solicitado a date_from y date_to. income_cents es dinero efectivamente cobrado, expenses_cents son gastos registrados y net_cents es ingresos menos gastos. No llames "ganancia" al valor esperado de citas ni a saldos pendientes. Informa citas pagadas, parciales, sin pagar y outstanding_cents cuando sea relevante.

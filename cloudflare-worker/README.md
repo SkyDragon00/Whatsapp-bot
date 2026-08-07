@@ -1,5 +1,27 @@
 # Cloudflare Worker de citas
 
+## Webhook de WhatsApp
+
+WhatsApp Cloud API usa `/whatsapp-webhook`; Telegram continúa usando `/telegram-webhook`.
+Configura estos valores como secretos del Worker, nunca en `wrangler.jsonc`:
+
+```powershell
+npx wrangler secret put WHATSAPP_VERIFY_TOKEN
+npx wrangler secret put WHATSAPP_ACCESS_TOKEN
+npx wrangler secret put WHATSAPP_PHONE_NUMBER_ID
+npx wrangler secret put META_APP_SECRET
+```
+
+En la configuración de Meta usa:
+
+- **Callback URL:** `https://TU-WORKER.workers.dev/whatsapp-webhook`
+- **Verify token:** exactamente el valor guardado en `WHATSAPP_VERIFY_TOKEN`
+
+Después de verificar el endpoint, suscribe el campo `messages`. `META_APP_SECRET`
+permite validar la firma `X-Hub-Signature-256` de cada notificación.
+`WHATSAPP_GRAPH_API_VERSION` es opcional para cambiar la versión de Graph API sin
+modificar código.
+
 El dashboard de `../public/index.html` se publica como Static Assets del mismo Worker. En producción, `/` sirve el calendario, `/health` conserva el diagnóstico, `/api/*` usa D1 y `/telegram-webhook` mantiene el bot.
 
 ## API administrativa

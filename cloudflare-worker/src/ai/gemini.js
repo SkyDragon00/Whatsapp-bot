@@ -158,6 +158,15 @@ export async function runGeminiAgent({
 				throw new AiProtocolError('Gemini intentó usar una herramienta desconocida.');
 			}
 			const response = await executeToolResult(functionCall.name, functionCall.args ?? {}, toolContext);
+			if (functionCall.name === 'register_business_from_onboarding') {
+				if (response?.ok) {
+					const businessName = response.data?.businessName || 'tu negocio';
+					const username = response.data?.username || 'tu usuario';
+					return `Listo. El negocio ${businessName} y el usuario ${username} fueron creados correctamente. Ya puedes iniciar sesión con la contraseña temporal. Por seguridad, la página te pedirá cambiarla antes de entrar al panel.`;
+				}
+				const message = response?.error?.message || 'No se pudo completar el registro.';
+				return `No pude crear la cuenta: ${message} Revisa los datos e inténtalo nuevamente; todavía no intentes iniciar sesión.`;
+			}
 			responseParts.push({
 				functionResponse: {
 					...(functionCall.id ? { id: functionCall.id } : {}),
