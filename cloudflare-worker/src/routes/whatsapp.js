@@ -7,9 +7,14 @@ import { runGeminiAgent } from '../ai/gemini.js';
 import { buildSystemPrompt } from '../ai/system-prompt.js';
 import { toolDeclarationsForMode } from '../ai/tool-definitions.js';
 import { clearConversation, loadConversation, saveConversation } from '../conversation/store.js';
-import { sendWhatsAppMessage } from '../integrations/whatsapp.js';
+import { downloadWhatsAppMedia, sendWhatsAppMessage } from '../integrations/whatsapp.js';
+import { handleExpenseConfirmation, processExpenseMessage } from '../expenses/flow.js';
+import { isExplicitExpenseText } from '../expenses/telegram-router.js';
+import { routeWhatsAppMessage } from '../expenses/whatsapp-router.js';
+import { attachPaymentReceipt } from '../repositories/payments-repository.js';
+import { storeReceipt } from '../storage/receipts.js';
 import { getKnowledgeContext } from '../repositories/knowledge-repository.js';
-import { getBotBusinessSettings } from '../repositories/settings-repository.js';
+import { getBotBusinessSettings, getBotCompanyId } from '../repositories/settings-repository.js';
 import { logError } from '../utils/logging.js';
 import { jsonResponse } from '../utils/responses.js';
 
@@ -101,18 +106,43 @@ export function handleWhatsAppVerification(request, env, url = new URL(request.u
 export async function processWhatsAppMessage({ message, env, now = new Date() }) {
 	const recipient = String(message.from);
 	const channelId = conversationId(recipient);
-	if (message.type !== 'text' || typeof message.text?.body !== 'string') return;
-
-	const text = message.text.body.trim();
-	if (!text) return;
+	const route = routeWhatsAppMessage(message);
+	const text = route.type === 'text' ? route.text : '';
+	if (route.type === 'text' && !text) return;
 	if (text.length > MAX_INCOMING_MESSAGE_LENGTH) {
 		await sendWhatsAppMessage(recipient, 'El mensaje es demasiado largo. Envíalo de forma más breve.', env);
 		return;
 	}
+	if (route.type === 'image') {
+		const pendingKey = `pending-payment-receipt:${recipient}`;
+		const pending = await env.CONVERSATIONS.get(pendingKey, 'json');
+		if (pending?.paymentId) {
+			const pendingPayment = await env.DB.prepare(
+				'SELECT id, payment_method FROM payments WHERE id = ?1 LIMIT 1',
+			).bind(pending.paymentId).first();
+			if (pendingPayment?.payment_method?.trim().toLocaleLowerCase('es') === 'transferencia') {
+				const media = await downloadWhatsAppMedia(route.fileId, env);
+				const receipt = await storeReceipt(env.RECEIPTS, {
+					ownerType: 'payments', ownerId: pending.paymentId, bytes: media.bytes,
+					mimeType: media.mimeType || route.mimeType,
+					fileName: media.fileName || `comprobante-whatsapp-${message.id}.jpg`,
+				});
+				const payment = await attachPaymentReceipt(env.DB, pending.paymentId, receipt);
+				if (!payment) throw new Error('PENDING_PAYMENT_NOT_FOUND');
+				await env.CONVERSATIONS.delete(pendingKey);
+				await sendWhatsAppMessage(recipient, 'Listo, guardé el comprobante en el pago de la transferencia.', env);
+				return;
+			}
+			await env.CONVERSATIONS.delete(pendingKey);
+		}
+	}
 
-	const command = text.split(/\s+/, 1)[0].toLowerCase();
+	const command = route.type === 'text' ? text.split(/\s+/, 1)[0].toLowerCase() : '';
 	if (command === '/start' || command === '/cancelar') {
-		await clearConversation(env.CONVERSATIONS, channelId);
+		await Promise.all([
+			clearConversation(env.CONVERSATIONS, channelId),
+			env.CONVERSATIONS.delete(`pending-payment-receipt:${recipient}`),
+		]);
 		if (command === '/cancelar') {
 			await sendWhatsAppMessage(recipient, CANCEL_MESSAGE, env);
 			return;
@@ -129,6 +159,22 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 	}
 
 	const settings = await getBotBusinessSettings(env.DB);
+	const companyId = await getBotCompanyId(env.DB);
+	const sendMessage = (chatId, body, targetEnv) => sendWhatsAppMessage(chatId, body, targetEnv);
+	if (route.type === 'text' && await handleExpenseConfirmation({
+		text, chatId: recipient, userId: recipient, env, now, companyId, sendMessage,
+	})) return;
+	if (settings.aiMode === 'owner' && (route.type !== 'text' || isExplicitExpenseText(text))) {
+		await processExpenseMessage({
+			route, chatId: recipient, userId: recipient,
+			settings, env, now, sendMessage, downloadMedia: downloadWhatsAppMedia,
+		});
+		return;
+	}
+	if (route.type !== 'text') {
+		await sendWhatsAppMessage(recipient, 'El registro de gastos solo está disponible en modo dueño.', env);
+		return;
+	}
 	const conversationMode = settings.onboardingEnabled ? 'onboarding' : 'normal';
 	const history = await loadConversation(env.CONVERSATIONS, channelId, { mode: conversationMode });
 	let knowledgeDocuments = [];

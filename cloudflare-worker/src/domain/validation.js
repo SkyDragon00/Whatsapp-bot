@@ -249,6 +249,6 @@ export function validateCreateAppointmentInput(input) {
 		service_id: requirePositiveInteger(value.service_id, 'El servicio'),
 		start_at: toUtcIso(value.start_datetime ?? value.start_at, 'La fecha de inicio'),
 		phone: requireString(value.phone, 'El teléfono', { max: 32, optional: true }),
-		source_update_id: requireString(value.source_update_id, 'El identificador de actualización', { max: 64, optional: true }),
+		source_update_id: requireString(value.source_update_id, 'El identificador de actualización', { max: 512, optional: true }),
 	};
 }

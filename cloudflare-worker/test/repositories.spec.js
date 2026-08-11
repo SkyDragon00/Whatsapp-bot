@@ -82,6 +82,23 @@ describe.sequential('repositorios D1', () => {
 		});
 	});
 
+	it('acepta IDs largos de mensajes de WhatsApp como clave de idempotencia', async () => {
+		const sourceUpdateId = `whatsapp:wamid.${'A'.repeat(180)}`;
+		const created = await createAppointment(
+			env.DB,
+			appointmentInput({ source_update_id: sourceUpdateId }),
+			{ now: testNow },
+		);
+		const retry = await createAppointment(
+			env.DB,
+			appointmentInput({ source_update_id: sourceUpdateId }),
+			{ now: testNow },
+		);
+
+		expect(created.source_update_id).toBe(sourceUpdateId);
+		expect(retry.id).toBe(created.id);
+	});
+
 	it('rechaza un intento de doble reserva', async () => {
 		await createAppointment(env.DB, appointmentInput(), { now: testNow });
 

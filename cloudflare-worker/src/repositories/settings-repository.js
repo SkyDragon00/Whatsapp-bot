@@ -40,6 +40,22 @@ export async function getBotBusinessSettings(db) {
 	return getBusinessSettings(db);
 }
 
+export async function getBotCompanyId(db) {
+	const serviceCompanies = await db.prepare(
+		`SELECT DISTINCT company_id FROM services
+		 WHERE enabled = 1 AND company_id IS NOT NULL
+		 ORDER BY company_id`,
+	).all();
+	if (serviceCompanies.results.length === 1) return Number(serviceCompanies.results[0].company_id);
+
+	const configuredCompanies = await db.prepare(
+		"SELECT key FROM settings WHERE key LIKE 'company:%:schedule' ORDER BY key",
+	).all();
+	if (configuredCompanies.results.length !== 1) return null;
+	const match = /^company:(\d+):schedule$/.exec(configuredCompanies.results[0].key);
+	return match ? Number(match[1]) : null;
+}
+
 export async function updateBotCommunicationStyle(db, communicationStyle) {
 	const result = await db.prepare(
 		"SELECT key, value FROM settings WHERE key LIKE 'company:%:schedule' ORDER BY key",

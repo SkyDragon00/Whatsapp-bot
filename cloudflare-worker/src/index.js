@@ -1,6 +1,5 @@
 import { handleTelegramWebhook } from './routes/telegram.js';
 import { handleWhatsAppVerification, handleWhatsAppWebhook } from './routes/whatsapp.js';
-import { handleWhatsAppWebJsBridge } from './routes/whatsapp-webjs.js';
 import { handleApiRequest } from './routes/api.js';
 import { logError } from './utils/logging.js';
 import { jsonResponse } from './utils/responses.js';
@@ -38,10 +37,6 @@ export default {
 
 			if (request.method === 'POST' && url.pathname === '/whatsapp-webhook') {
 				return await handleWhatsAppWebhook(request, env, ctx);
-			}
-
-			if (request.method === 'POST' && url.pathname === '/whatsapp-webjs') {
-				return await handleWhatsAppWebJsBridge(request, env);
 			}
 
 			if ((request.method === 'GET' || request.method === 'HEAD') && env.ASSETS) {

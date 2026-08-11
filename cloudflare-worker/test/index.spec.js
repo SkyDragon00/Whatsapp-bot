@@ -2,6 +2,15 @@ import { SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 
 describe('Worker actual', () => {
+	it('mantiene deshabilitado el puente heredado de whatsapp-web.js', async () => {
+		const response = await SELF.fetch('https://example.com/whatsapp-webjs', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ sender: '593999111222', text: 'Hola', messageId: 'legacy-1' }),
+		});
+		expect(response.status).toBe(404);
+	});
+
 	it('conserva operativo el endpoint de estado', async () => {
 		const response = await SELF.fetch('http://example.com/health');
 		const body = await response.json();

@@ -30,9 +30,9 @@ function bytesToBase64(bytes) {
 	return btoa(binary);
 }
 
-async function prepareInput(route, env) {
+async function prepareInput(route, env, downloadMedia) {
 	if (route.type === 'text') return { type: 'text', text: route.text };
-	const downloaded = await downloadTelegramFile(route.fileId, env);
+	const downloaded = await downloadMedia(route.fileId, env);
 	if (route.type === 'audio') {
 		return { type: 'audio', mimeType: route.mimeType ?? downloaded.mimeType, base64: bytesToBase64(downloaded.bytes) };
 	}
@@ -53,7 +53,10 @@ async function completeMedia(kv, mediaId, pendingId) {
 	if (mediaId) await kv.put(mediaKey(mediaId), pendingId ?? 'review', { expirationTtl: MEDIA_TTL_SECONDS });
 }
 
-export async function handleExpenseConfirmation({ text, chatId, userId, env, now = new Date() }) {
+export async function handleExpenseConfirmation({
+	text, chatId, userId, env, now = new Date(), companyId = null,
+	sendMessage = sendTelegramMessage,
+}) {
 	const reply = normalizeReply(text);
 	if (!YES.has(reply) && !NO.has(reply)) return false;
 	const pendingId = await env.CONVERSATIONS.get(chatPendingKey(chatId));
@@ -61,12 +64,12 @@ export async function handleExpenseConfirmation({ text, chatId, userId, env, now
 	const pending = await env.CONVERSATIONS.get(pendingKey(pendingId), 'json');
 	if (!pending || pending.chatId !== chatId || pending.userId !== userId) {
 		await env.CONVERSATIONS.delete(chatPendingKey(chatId));
-		await sendTelegramMessage(chatId, 'Ese gasto pendiente ya expiró. Envíalo nuevamente.', env);
+		await sendMessage(chatId, 'Ese gasto pendiente ya expiró. Envíalo nuevamente.', env);
 		return true;
 	}
 	if (NO.has(reply)) {
 		await Promise.all([env.CONVERSATIONS.delete(pendingKey(pendingId)), env.CONVERSATIONS.delete(chatPendingKey(chatId))]);
-		await sendTelegramMessage(chatId, 'Gasto descartado. No se guardó nada.', env);
+		await sendMessage(chatId, 'Gasto descartado. No se guardó nada.', env);
 		return true;
 	}
 	const expense = await createExpense(env.DB, {
@@ -77,32 +80,35 @@ export async function handleExpenseConfirmation({ text, chatId, userId, env, now
 		amount_cents: Math.round(pending.extraction.amount * 100),
 		payment_method: 'No especificado',
 		notes: `Confirmación: ${pendingId}; moneda: ${pending.extraction.currency}; confianza: ${pending.extraction.confidence}`,
-	}, { now });
+	}, { now, companyId });
 	await Promise.all([env.CONVERSATIONS.delete(pendingKey(pendingId)), env.CONVERSATIONS.delete(chatPendingKey(chatId))]);
-	await sendTelegramMessage(chatId, `Gasto #${expense.id} registrado correctamente.`, env);
+	await sendMessage(chatId, `Gasto #${expense.id} registrado correctamente.`, env);
 	return true;
 }
 
-export async function processExpenseMessage({ route, chatId, userId, settings, env, now = new Date() }) {
+export async function processExpenseMessage({
+	route, chatId, userId, settings, env, now = new Date(),
+	sendMessage = sendTelegramMessage, downloadMedia = downloadTelegramFile,
+}) {
 	if (route.type === 'unsupported') {
-		await sendTelegramMessage(chatId, 'Solo puedo procesar texto, fotos de facturas/recibos y notas de voz.', env);
+		await sendMessage(chatId, 'Solo puedo procesar texto, fotos de facturas/recibos y notas de voz.', env);
 		return;
 	}
 	if (route.type === 'text' && !route.text) {
-		await sendTelegramMessage(chatId, 'Escribe el monto y la descripción del gasto.', env);
+		await sendMessage(chatId, 'Escribe el monto y la descripción del gasto.', env);
 		return;
 	}
 	if (!(await claimMedia(env.CONVERSATIONS, route.mediaId))) {
-		await sendTelegramMessage(chatId, 'Ese archivo ya fue procesado. Revisa el gasto pendiente.', env);
+		await sendMessage(chatId, 'Ese archivo ya fue procesado. Revisa el gasto pendiente.', env);
 		return;
 	}
 	try {
 		const context = getExpenseBusinessContext(env, settings, now);
-		const input = await prepareInput(route, env);
+		const input = await prepareInput(route, env, downloadMedia);
 		const extraction = await extractExpense({ apiKey: env.GEMINI_API_KEY, input, context });
 		if (!extraction.detected || extraction.needs_review) {
 			await completeMedia(env.CONVERSATIONS, route.mediaId, null);
-			await sendTelegramMessage(chatId, 'No pude identificar un gasto completo. Indica claramente el monto y la descripción.', env);
+			await sendMessage(chatId, 'No pude identificar un gasto completo. Indica claramente el monto y la descripción.', env);
 			return;
 		}
 		const id = shortId();
@@ -114,7 +120,7 @@ export async function processExpenseMessage({ route, chatId, userId, settings, e
 		await completeMedia(env.CONVERSATIONS, route.mediaId, id);
 		const merchant = extraction.merchant ? `\nProveedor: ${extraction.merchant}` : '';
 		const date = extraction.date ? `\nFecha: ${extraction.date}` : '';
-		await sendTelegramMessage(
+		await sendMessage(
 			chatId,
 			`Gasto detectado [${id}]\nMonto: ${extraction.currency} ${extraction.amount.toFixed(2)}\nDescripción: ${extraction.description}\nCategoría: ${extraction.category}${merchant}${date}\n\n¿Está correcto? Responde sí o no.`,
 			env,

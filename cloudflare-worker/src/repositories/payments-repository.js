@@ -35,7 +35,7 @@ export async function createPayment(db, input, { now = new Date() } = {}) {
 		requireString(input.telegram_user_id, 'El identificador del usuario', { max: 32 }),
 		requireString(input.telegram_chat_id, 'El identificador del chat', { max: 32 }),
 		requireString(input.telegram_username, 'El usuario de Telegram', { max: 64, optional: true }),
-		requireString(input.source_update_id, 'El identificador de actualización', { max: 64, optional: true }),
+		requireString(input.source_update_id, 'El identificador de actualización', { max: 512, optional: true }),
 		now.toISOString(),
 	).first();
 }
@@ -106,7 +106,7 @@ export async function createOwnerChatPayment(db, input, { now = new Date() } = {
 			phone: requireString(input.phone, 'El teléfono', { max: 32 }),
 		};
 	const appointment = await db.prepare(
-		`SELECT a.id, a.customer_id, a.patient_name, a.service_id, a.service_name, a.service
+		`SELECT a.id, a.customer_id, a.patient_name, a.service_id, a.service_name, a.service, a.company_id
 		 FROM appointments a WHERE a.id = ?1 LIMIT 1`,
 	).bind(appointmentId).first();
 	if (!appointment) throw new ValidationError('No se encontró la cita seleccionada.');
@@ -116,11 +116,11 @@ export async function createOwnerChatPayment(db, input, { now = new Date() } = {
 	await db.batch([
 		db.prepare('UPDATE customers SET cedula_ruc = ?2, address = ?3, phone = ?4, updated_at = ?5 WHERE id = ?1')
 			.bind(appointment.customer_id, fiscalData.cedula_ruc, fiscalData.address, fiscalData.phone, timestamp),
-		db.prepare(
+			db.prepare(
 			`INSERT INTO payments (
 				appointment_id, payment_date, customer_name, amount_cents, payment_method, bank, notes,
-				telegram_user_id, telegram_chat_id, telegram_username, source_update_id, created_at
-			 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`,
+				telegram_user_id, telegram_chat_id, telegram_username, source_update_id, created_at, company_id
+			 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`,
 		).bind(
 			appointmentId, requirePaymentDate(input.payment_date), appointment.patient_name, amountCents,
 			requireString(input.payment_method, 'El método de pago', { min: 2, max: 60 }),
@@ -129,8 +129,8 @@ export async function createOwnerChatPayment(db, input, { now = new Date() } = {
 			requireString(input.telegram_user_id, 'El identificador del usuario', { max: 32 }),
 			requireString(input.telegram_chat_id, 'El identificador del chat', { max: 32 }),
 			requireString(input.telegram_username, 'El usuario de Telegram', { max: 64, optional: true }),
-			requireString(input.source_update_id, 'El identificador de actualización', { max: 64, optional: true }),
-			timestamp,
+			requireString(input.source_update_id, 'El identificador de actualización', { max: 512, optional: true }),
+			timestamp, appointment.company_id,
 		),
 	]);
 	const payment = input.source_update_id

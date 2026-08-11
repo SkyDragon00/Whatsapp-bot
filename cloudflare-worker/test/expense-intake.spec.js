@@ -4,6 +4,7 @@ import { extractExpense } from '../src/expenses/extractor.js';
 import { buildExpenseSystemPrompt } from '../src/expenses/jit-prompt.js';
 import { buildExpenseResponseSchema } from '../src/expenses/response-schema.js';
 import { isExplicitExpenseText, routeTelegramMessage } from '../src/expenses/telegram-router.js';
+import { routeWhatsAppMessage } from '../src/expenses/whatsapp-router.js';
 import { handleExpenseConfirmation } from '../src/expenses/flow.js';
 
 const context = {
@@ -27,6 +28,19 @@ describe('ingreso confirmado de gastos', () => {
 		] })).toMatchObject({ type: 'image', fileId: 'suitable', mediaId: 'unique', width: 800, height: 1200 });
 		expect(routeTelegramMessage({ voice: { file_id: 'voice', file_unique_id: 'v1' } })).toMatchObject({ type: 'audio', mediaId: 'v1' });
 		expect(routeTelegramMessage({ sticker: { file_id: 'sticker' } })).toEqual({ type: 'unsupported' });
+	});
+
+	it('enruta texto, imagen y audio de WhatsApp al mismo flujo de gastos', () => {
+		expect(routeWhatsAppMessage({ type: 'text', text: { body: 'Gasté 20' } }))
+			.toEqual({ type: 'text', text: 'Gasté 20' });
+		expect(routeWhatsAppMessage({
+			type: 'image', image: { id: 'image-1', mime_type: 'image/webp' },
+		})).toMatchObject({ type: 'image', fileId: 'image-1', mediaId: 'image-1', mimeType: 'image/webp' });
+		expect(routeWhatsAppMessage({
+			type: 'audio', audio: { id: 'audio-1', mime_type: 'audio/ogg' },
+		})).toMatchObject({ type: 'audio', fileId: 'audio-1', mediaId: 'audio-1', mimeType: 'audio/ogg' });
+		expect(routeWhatsAppMessage({ type: 'video', video: { id: 'video-1' } }))
+			.toEqual({ type: 'unsupported' });
 	});
 
 	it('separa de forma determinista un gasto textual de una solicitud de cita', () => {
@@ -80,5 +94,24 @@ describe('ingreso confirmado de gastos', () => {
 		expect(stored.notes).toContain('Confirmación: A1B2C3D4');
 		expect(await env.CONVERSATIONS.get('expense:pending:A1B2C3D4')).toBeNull();
 		vi.unstubAllGlobals();
+	});
+
+	it('permite confirmar por WhatsApp y asigna la empresa del bot', async () => {
+		await env.DB.prepare("INSERT OR IGNORE INTO companies (id, name) VALUES (5, 'Empresa WhatsApp')").run();
+		const pending = {
+			id: 'A1B2C3D4', chatId: '8001', userId: '7001', localDate: '2026-07-19',
+			extraction: { amount: 20, currency: 'USD', description: 'Uñas falsas', category: 'Insumos', merchant: null, date: null, confidence: 1 },
+		};
+		await env.CONVERSATIONS.put('expense:pending:A1B2C3D4', JSON.stringify(pending), { expirationTtl: 3600 });
+		await env.CONVERSATIONS.put('expense:chat:8001', 'A1B2C3D4', { expirationTtl: 3600 });
+		const sendMessage = vi.fn().mockResolvedValue(undefined);
+
+		expect(await handleExpenseConfirmation({
+			text: 'sí', chatId: '8001', userId: '7001', env, companyId: 5, sendMessage,
+		})).toBe(true);
+
+		const stored = await env.DB.prepare('SELECT * FROM expenses').first();
+		expect(stored).toMatchObject({ description: 'Uñas falsas', amount_cents: 2000, company_id: 5 });
+		expect(sendMessage).toHaveBeenCalledWith('8001', expect.stringContaining('registrado correctamente'), env);
 	});
 });

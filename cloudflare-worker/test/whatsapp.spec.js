@@ -8,7 +8,7 @@ import {
 	handleWhatsAppVerification,
 	handleWhatsAppWebhook,
 } from '../src/routes/whatsapp.js';
-import { sendWhatsAppMessage } from '../src/integrations/whatsapp.js';
+import { downloadWhatsAppMedia, sendWhatsAppMessage } from '../src/integrations/whatsapp.js';
 
 const message = {
 	from: '593999111222',
@@ -118,5 +118,31 @@ describe('webhook de WhatsApp', () => {
 				headers: expect.objectContaining({ Authorization: 'Bearer token-nuevo' }),
 			}),
 		);
+	});
+
+	it('descarga medios de Meta usando el token nuevo en ambas solicitudes', async () => {
+		const fetchImpl = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				url: 'https://lookaside.fbsbx.com/whatsapp/media-test',
+				mime_type: 'image/jpeg',
+				file_size: 4,
+			}), { headers: { 'Content-Type': 'application/json' } }))
+			.mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3, 4]), {
+				headers: { 'Content-Type': 'image/jpeg' },
+			}));
+
+		const result = await downloadWhatsAppMedia('media-123', {
+			WHATSAPP_ACCESS_TOKEN_NEW: 'token-nuevo',
+			WHATSAPP_ACCESS_TOKEN: 'token-anterior',
+		}, { fetchImpl });
+
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(fetchImpl.mock.calls[0][0]).toBe('https://graph.facebook.com/v23.0/media-123');
+		expect(fetchImpl.mock.calls[1][0]).toBe('https://lookaside.fbsbx.com/whatsapp/media-test');
+		for (const call of fetchImpl.mock.calls) {
+			expect(call[1].headers).toMatchObject({ Authorization: 'Bearer token-nuevo' });
+		}
+		expect(result.mimeType).toBe('image/jpeg');
+		expect([...new Uint8Array(result.bytes)]).toEqual([1, 2, 3, 4]);
 	});
 });
