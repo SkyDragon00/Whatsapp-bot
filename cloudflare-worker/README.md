@@ -7,7 +7,7 @@ Configura estos valores como secretos del Worker, nunca en `wrangler.jsonc`:
 
 ```powershell
 npx wrangler secret put WHATSAPP_VERIFY_TOKEN
-npx wrangler secret put WHATSAPP_ACCESS_TOKEN
+npx wrangler secret put WHATSAPP_ACCESS_TOKEN_NEW
 npx wrangler secret put WHATSAPP_PHONE_NUMBER_ID
 npx wrangler secret put META_APP_SECRET
 ```
@@ -16,6 +16,9 @@ En la configuración de Meta usa:
 
 - **Callback URL:** `https://TU-WORKER.workers.dev/whatsapp-webhook`
 - **Verify token:** exactamente el valor guardado en `WHATSAPP_VERIFY_TOKEN`
+
+El Worker prioriza `WHATSAPP_ACCESS_TOKEN_NEW` y conserva
+`WHATSAPP_ACCESS_TOKEN` como respaldo temporal para instalaciones anteriores.
 
 Después de verificar el endpoint, suscribe el campo `messages`. `META_APP_SECRET`
 permite validar la firma `X-Hub-Signature-256` de cada notificación.

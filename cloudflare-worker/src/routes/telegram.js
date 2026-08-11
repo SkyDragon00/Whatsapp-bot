@@ -122,6 +122,7 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 		return;
 	}
 	const settings = await getBotBusinessSettings(env.DB);
+	const conversationMode = settings.onboardingEnabled ? 'onboarding' : 'normal';
 	if (route.type === 'text' && await handleExpenseConfirmation({ text, chatId, userId, env, now })) return;
 	if (settings.aiMode === 'owner' && (route.type !== 'text' || isExplicitExpenseText(text))) {
 		await processExpenseMessage({ route, chatId, userId, settings, env, now });
@@ -132,7 +133,7 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 		return;
 	}
 
-	const history = await loadConversation(env.CONVERSATIONS, chatId);
+	const history = await loadConversation(env.CONVERSATIONS, chatId, { mode: conversationMode });
 	let knowledgeDocuments = [];
 	try {
 		knowledgeDocuments = await getKnowledgeContext(env.DB);
@@ -161,7 +162,7 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 		...history,
 		{ role: 'user', text },
 		{ role: 'model', text: responseText },
-	]);
+	], { mode: conversationMode });
 }
 
 async function finishClaimedUpdate({ update, message, identity, env, processUpdate }) {

@@ -39,7 +39,8 @@ export async function processWhatsAppWebJsMessage({ sender, text, messageId, pro
 	}
 
 	const settings = await getBotBusinessSettings(env.DB);
-	const history = await loadConversation(env.CONVERSATIONS, channelId);
+	const conversationMode = settings.onboardingEnabled ? 'onboarding' : 'normal';
+	const history = await loadConversation(env.CONVERSATIONS, channelId, { mode: conversationMode });
 	let knowledgeDocuments = [];
 	try {
 		knowledgeDocuments = await getKnowledgeContext(env.DB);
@@ -67,7 +68,7 @@ export async function processWhatsAppWebJsMessage({ sender, text, messageId, pro
 		...history,
 		{ role: 'user', text },
 		{ role: 'model', text: responseText },
-	]);
+	], { mode: conversationMode });
 	return responseText;
 }
 

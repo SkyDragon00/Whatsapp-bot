@@ -24,16 +24,17 @@ function normalizeMessages(messages) {
 		.slice(-CONVERSATION_MAX_MESSAGES);
 }
 
-export async function loadConversation(kv, chatId) {
+export async function loadConversation(kv, chatId, { mode } = {}) {
 	const stored = await kv.get(conversationKey(chatId), 'json');
+	if (mode !== undefined && stored?.mode !== mode) return [];
 	return normalizeMessages(stored?.messages);
 }
 
-export async function saveConversation(kv, chatId, messages) {
+export async function saveConversation(kv, chatId, messages, { mode } = {}) {
 	const normalized = normalizeMessages(messages);
 	await kv.put(
 		conversationKey(chatId),
-		JSON.stringify({ messages: normalized, updatedAt: new Date().toISOString() }),
+		JSON.stringify({ messages: normalized, ...(mode === undefined ? {} : { mode }), updatedAt: new Date().toISOString() }),
 		{ expirationTtl: CONVERSATION_TTL_SECONDS },
 	);
 	return normalized;

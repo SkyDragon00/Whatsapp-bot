@@ -5,7 +5,8 @@ import {
 import { fetchWithTimeout, readJsonWithLimit } from '../utils/http.js';
 
 export async function sendWhatsAppMessage(recipient, text, env, { fetchImpl = fetch } = {}) {
-	if (!env.WHATSAPP_ACCESS_TOKEN) throw new Error('WHATSAPP_ACCESS_TOKEN_NOT_CONFIGURED');
+	const accessToken = env.WHATSAPP_ACCESS_TOKEN_NEW || env.WHATSAPP_ACCESS_TOKEN;
+	if (!accessToken) throw new Error('WHATSAPP_ACCESS_TOKEN_NOT_CONFIGURED');
 	if (!env.WHATSAPP_PHONE_NUMBER_ID) throw new Error('WHATSAPP_PHONE_NUMBER_ID_NOT_CONFIGURED');
 
 	const safeText = String(text).trim().slice(0, MAX_WHATSAPP_MESSAGE_LENGTH)
@@ -16,7 +17,7 @@ export async function sendWhatsAppMessage(recipient, text, env, { fetchImpl = fe
 		{
 			method: 'POST',
 			headers: {
-				Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+				Authorization: `Bearer ${accessToken}`,
 				'Content-Type': 'application/json',
 			},
 			body: JSON.stringify({

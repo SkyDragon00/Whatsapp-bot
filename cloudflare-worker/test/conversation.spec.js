@@ -28,4 +28,18 @@ describe('memoria conversacional en KV', () => {
 		await clearConversation(env.CONVERSATIONS, chatId);
 		expect(await loadConversation(env.CONVERSATIONS, chatId)).toEqual([]);
 	});
+
+	it('olvida un onboarding interrumpido al volver al modo normal', async () => {
+		const chatId = `mode-${crypto.randomUUID()}`;
+		await saveConversation(env.CONVERSATIONS, chatId, [
+			{ role: 'user', text: 'Mi negocio se llama Peludos Amigos' },
+			{ role: 'model', text: '¿Cuál será tu usuario?' },
+		], { mode: 'onboarding' });
+		expect(await loadConversation(env.CONVERSATIONS, chatId, { mode: 'onboarding' })).toHaveLength(2);
+		expect(await loadConversation(env.CONVERSATIONS, chatId, { mode: 'normal' })).toEqual([]);
+		await saveConversation(env.CONVERSATIONS, chatId, [{ role: 'user', text: 'Quiero una cita' }], { mode: 'normal' });
+		expect(await loadConversation(env.CONVERSATIONS, chatId, { mode: 'normal' })).toEqual([
+			{ role: 'user', text: 'Quiero una cita' },
+		]);
+	});
 });

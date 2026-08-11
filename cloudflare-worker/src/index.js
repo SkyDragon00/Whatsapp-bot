@@ -21,7 +21,7 @@ export default {
 						database: Boolean(env.DB),
 						conversations: Boolean(env.CONVERSATIONS),
 						telegramToken: Boolean(env.TELEGRAM_BOT_TOKEN),
-						whatsappToken: Boolean(env.WHATSAPP_ACCESS_TOKEN),
+						whatsappToken: Boolean(env.WHATSAPP_ACCESS_TOKEN_NEW || env.WHATSAPP_ACCESS_TOKEN),
 						whatsappPhoneNumberId: Boolean(env.WHATSAPP_PHONE_NUMBER_ID),
 						geminiKey: Boolean(env.GEMINI_API_KEY),
 					},
