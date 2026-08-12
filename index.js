@@ -20,10 +20,18 @@ if (!workerUrl || !bridgeToken) {
   client.on('message', async (msg) => {
     if (msg.fromMe || msg.from === 'status@broadcast' || msg.from.endsWith('@g.us')) return;
     const text = typeof msg.body === 'string' ? msg.body.trim() : '';
-    if (!text) return;
+    const isAudio = msg.hasMedia && (msg.type === 'ptt' || msg.type === 'audio');
+    if (!text && !isAudio) return;
 
     try {
       const contact = await msg.getContact();
+      let audio;
+      if (isAudio) {
+        const media = await msg.downloadMedia();
+        if (!media?.data) throw new Error('No se pudo descargar la nota de voz');
+        if (media.data.length > 14_000_000) throw new Error('La nota de voz es demasiado grande');
+        audio = { data: media.data, mimeType: media.mimetype || 'audio/ogg' };
+      }
       const response = await fetch(`${workerUrl}/whatsapp-webjs`, {
         method: 'POST',
         headers: {
@@ -35,6 +43,7 @@ if (!workerUrl || !bridgeToken) {
           messageId: msg.id?._serialized || `${msg.from}:${msg.timestamp}`,
           profileName: contact.pushname || contact.name || null,
           text,
+          ...(audio ? { audio } : {}),
         }),
         signal: AbortSignal.timeout(60_000),
       });

@@ -8,7 +8,11 @@ import {
 	handleWhatsAppVerification,
 	handleWhatsAppWebhook,
 } from '../src/routes/whatsapp.js';
-import { downloadWhatsAppMedia, sendWhatsAppMessage } from '../src/integrations/whatsapp.js';
+import {
+	downloadWhatsAppMedia,
+	sendWhatsAppMessage,
+	sendWhatsAppTypingIndicator,
+} from '../src/integrations/whatsapp.js';
 
 const message = {
 	from: '593999111222',
@@ -116,6 +120,32 @@ describe('webhook de WhatsApp', () => {
 			'https://graph.facebook.com/v23.0/123456789/messages',
 			expect.objectContaining({
 				headers: expect.objectContaining({ Authorization: 'Bearer token-nuevo' }),
+			}),
+		);
+	});
+
+	it('marca el mensaje como leído y muestra el indicador de escritura', async () => {
+		const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), {
+			status: 200,
+			headers: { 'Content-Type': 'application/json' },
+		}));
+
+		await sendWhatsAppTypingIndicator('wamid.incoming', {
+			WHATSAPP_ACCESS_TOKEN_NEW: 'token-nuevo',
+			WHATSAPP_PHONE_NUMBER_ID: '123456789',
+		}, { fetchImpl });
+
+		expect(fetchImpl).toHaveBeenCalledWith(
+			'https://graph.facebook.com/v23.0/123456789/messages',
+			expect.objectContaining({
+				method: 'POST',
+				headers: expect.objectContaining({ Authorization: 'Bearer token-nuevo' }),
+				body: JSON.stringify({
+					messaging_product: 'whatsapp',
+					status: 'read',
+					message_id: 'wamid.incoming',
+					typing_indicator: { type: 'text' },
+				}),
 			}),
 		);
 	});

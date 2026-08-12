@@ -1,5 +1,6 @@
 import { MAX_INCOMING_MESSAGE_LENGTH } from '../config/constants.js';
 import { runGeminiAgent } from '../ai/gemini.js';
+import { transcribeAppointmentAudio } from '../ai/transcription.js';
 import { buildSystemPrompt } from '../ai/system-prompt.js';
 import { toolDeclarationsForMode } from '../ai/tool-definitions.js';
 import { clearConversation, loadConversation, saveConversation } from '../conversation/store.js';
@@ -22,13 +23,13 @@ function bearerToken(request) {
 	return authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
 }
 
-export async function processWhatsAppWebJsMessage({ sender, text, messageId, profileName, env, now = new Date() }) {
+export async function processWhatsAppWebJsMessage({ sender, text, audio, messageId, profileName, env, now = new Date() }) {
 	const channelId = `whatsapp:${sender}`;
 	if (text.length > MAX_INCOMING_MESSAGE_LENGTH) {
 		return 'El mensaje es demasiado largo. Envíalo de forma más breve.';
 	}
 
-	const command = text.split(/\s+/, 1)[0].toLowerCase();
+	const command = text ? text.split(/\s+/, 1)[0].toLowerCase() : '';
 	if (command === '/start' || command === '/cancelar') {
 		await clearConversation(env.CONVERSATIONS, channelId);
 		if (command === '/cancelar') return CANCEL_MESSAGE;
@@ -39,6 +40,16 @@ export async function processWhatsAppWebJsMessage({ sender, text, messageId, pro
 	}
 
 	const settings = await getBotBusinessSettings(env.DB);
+	if (audio) {
+		if (settings.aiMode !== 'client') {
+			return 'Las notas de voz para solicitar citas están disponibles en modo cliente.';
+		}
+		text = await transcribeAppointmentAudio({
+			apiKey: env.GEMINI_API_KEY,
+			bytes: audio.bytes,
+			mimeType: audio.mimeType,
+		});
+	}
 	const conversationMode = settings.onboardingEnabled ? 'onboarding' : 'normal';
 	const history = await loadConversation(env.CONVERSATIONS, channelId, { mode: conversationMode });
 	let knowledgeDocuments = [];
@@ -79,19 +90,32 @@ export async function handleWhatsAppWebJsBridge(request, env) {
 
 	let payload;
 	try {
-		payload = await readJsonWithLimit(request, 64_000);
+		payload = await readJsonWithLimit(request, 14_000_000);
 	} catch {
 		return jsonResponse({ ok: false, error: 'Solicitud inválida' }, 400);
 	}
 
 	const sender = typeof payload?.sender === 'string' ? payload.sender.replace(/\D/g, '') : '';
-	const text = typeof payload?.text === 'string' ? payload.text.trim() : '';
+	let text = typeof payload?.text === 'string' ? payload.text.trim() : '';
 	const messageId = typeof payload?.messageId === 'string' ? payload.messageId.slice(0, 256) : '';
 	const profileName = typeof payload?.profileName === 'string' ? payload.profileName.slice(0, 160) : null;
-	if (!sender || !text || !messageId) {
-		return jsonResponse({ ok: false, error: 'Faltan sender, text o messageId' }, 400);
+	let audio = null;
+	if (payload?.audio && typeof payload.audio.data === 'string') {
+		try {
+			const binary = atob(payload.audio.data);
+			if (binary.length > 10 * 1024 * 1024) throw new Error('AUDIO_TOO_LARGE');
+			audio = {
+				bytes: Uint8Array.from(binary, (character) => character.charCodeAt(0)).buffer,
+				mimeType: typeof payload.audio.mimeType === 'string' ? payload.audio.mimeType.slice(0, 100) : 'audio/ogg',
+			};
+		} catch {
+			return jsonResponse({ ok: false, error: 'Audio inválido o demasiado grande' }, 400);
+		}
+	}
+	if (!sender || (!text && !audio) || !messageId) {
+		return jsonResponse({ ok: false, error: 'Faltan sender, mensaje o messageId' }, 400);
 	}
 
-	const reply = await processWhatsAppWebJsMessage({ sender, text, messageId, profileName, env });
+	const reply = await processWhatsAppWebJsMessage({ sender, text, audio, messageId, profileName, env });
 	return jsonResponse({ ok: true, reply });
 }

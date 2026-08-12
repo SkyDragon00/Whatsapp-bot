@@ -10,6 +10,40 @@ function accessToken(env) {
 	return env.WHATSAPP_ACCESS_TOKEN_NEW || env.WHATSAPP_ACCESS_TOKEN;
 }
 
+export async function sendWhatsAppTypingIndicator(messageId, env, { fetchImpl = fetch } = {}) {
+	const token = accessToken(env);
+	if (!token) throw new Error('WHATSAPP_ACCESS_TOKEN_NOT_CONFIGURED');
+	if (!env.WHATSAPP_PHONE_NUMBER_ID) throw new Error('WHATSAPP_PHONE_NUMBER_ID_NOT_CONFIGURED');
+	if (!messageId) throw new Error('WHATSAPP_MESSAGE_ID_REQUIRED');
+
+	const graphVersion = env.WHATSAPP_GRAPH_API_VERSION || 'v23.0';
+	const response = await fetchWithTimeout(
+		`https://graph.facebook.com/${graphVersion}/${encodeURIComponent(env.WHATSAPP_PHONE_NUMBER_ID)}/messages`,
+		{
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${token}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				messaging_product: 'whatsapp',
+				status: 'read',
+				message_id: String(messageId),
+				typing_indicator: { type: 'text' },
+			}),
+		},
+		WHATSAPP_TIMEOUT_MS,
+		fetchImpl,
+	);
+	const result = await readJsonWithLimit(response, 256_000);
+	if (!response.ok || result?.error) {
+		const error = new Error(`WHATSAPP_TYPING_INDICATOR_FAILED_${response.status}`);
+		error.code = 'WHATSAPP_TYPING_INDICATOR_FAILED';
+		throw error;
+	}
+	return result;
+}
+
 export async function sendWhatsAppMessage(recipient, text, env, { fetchImpl = fetch } = {}) {
 	const token = accessToken(env);
 	if (!token) throw new Error('WHATSAPP_ACCESS_TOKEN_NOT_CONFIGURED');

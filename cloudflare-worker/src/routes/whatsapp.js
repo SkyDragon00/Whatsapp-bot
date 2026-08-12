@@ -4,10 +4,15 @@ import {
 	MAX_INCOMING_MESSAGE_LENGTH,
 } from '../config/constants.js';
 import { runGeminiAgent } from '../ai/gemini.js';
+import { transcribeAppointmentAudio } from '../ai/transcription.js';
 import { buildSystemPrompt } from '../ai/system-prompt.js';
 import { toolDeclarationsForMode } from '../ai/tool-definitions.js';
 import { clearConversation, loadConversation, saveConversation } from '../conversation/store.js';
-import { downloadWhatsAppMedia, sendWhatsAppMessage } from '../integrations/whatsapp.js';
+import {
+	downloadWhatsAppMedia,
+	sendWhatsAppMessage,
+	sendWhatsAppTypingIndicator,
+} from '../integrations/whatsapp.js';
 import { handleExpenseConfirmation, processExpenseMessage } from '../expenses/flow.js';
 import { isExplicitExpenseText } from '../expenses/telegram-router.js';
 import { routeWhatsAppMessage } from '../expenses/whatsapp-router.js';
@@ -107,11 +112,16 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 	const recipient = String(message.from);
 	const channelId = conversationId(recipient);
 	const route = routeWhatsAppMessage(message);
-	const text = route.type === 'text' ? route.text : '';
+	let text = route.type === 'text' ? route.text : '';
 	if (route.type === 'text' && !text) return;
 	if (text.length > MAX_INCOMING_MESSAGE_LENGTH) {
 		await sendWhatsAppMessage(recipient, 'El mensaje es demasiado largo. Envíalo de forma más breve.', env);
 		return;
+	}
+	try {
+		await sendWhatsAppTypingIndicator(message.id, env);
+	} catch (error) {
+		logError('whatsapp_typing_indicator_failed', error, { identity: message.id });
 	}
 	if (route.type === 'image') {
 		const pendingKey = `pending-payment-receipt:${recipient}`;
@@ -171,7 +181,15 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 		});
 		return;
 	}
-	if (route.type !== 'text') {
+	if (settings.aiMode === 'client' && route.type === 'audio') {
+		const media = await downloadWhatsAppMedia(route.fileId, env);
+		text = await transcribeAppointmentAudio({
+			apiKey: env.GEMINI_API_KEY,
+			bytes: media.bytes,
+			mimeType: route.mimeType || media.mimeType,
+		});
+	}
+	if (route.type !== 'text' && !(settings.aiMode === 'client' && route.type === 'audio')) {
 		await sendWhatsAppMessage(recipient, 'El registro de gastos solo está disponible en modo dueño.', env);
 		return;
 	}

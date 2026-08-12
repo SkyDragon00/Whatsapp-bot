@@ -202,6 +202,33 @@ describe.sequential('herramientas controladas del backend', () => {
 		expect((await getBusinessSettings(env.DB)).businessProfile.communicationStyle).toBe('semiformal');
 	});
 
+	it('usa en el bot el estilo de la empresa activa aunque existan otras empresas', async () => {
+		const activeCompany = await env.DB.prepare("INSERT INTO companies (name) VALUES ('Empresa WhatsApp') RETURNING id").first();
+		const otherCompany = await env.DB.prepare("INSERT INTO companies (name) VALUES ('Otra empresa') RETURNING id").first();
+		const baseSettings = await getBusinessSettings(env.DB);
+		await saveBusinessSettings(env.DB, {
+			...baseSettings,
+			businessProfile: { ...baseSettings.businessProfile, communicationStyle: 'formal' },
+		}, { companyId: activeCompany.id });
+		await saveBusinessSettings(env.DB, {
+			...baseSettings,
+			businessProfile: { ...baseSettings.businessProfile, communicationStyle: 'friend' },
+		}, { companyId: otherCompany.id });
+		await createService(env.DB, {
+			name: 'Servicio de WhatsApp',
+			duration_minutes: 30,
+			price_cents: 1500,
+			enabled: true,
+		}, { companyId: activeCompany.id });
+
+		expect((await getBotBusinessSettings(env.DB)).businessProfile.communicationStyle).toBe('formal');
+
+		const changed = await executeToolSafely('set_communication_style', { style: 'semiformal' }, context());
+		expect(changed).toEqual({ ok: true, data: { communicationStyle: 'semiformal' } });
+		expect((await getBusinessSettings(env.DB, { companyId: activeCompany.id })).businessProfile.communicationStyle).toBe('semiformal');
+		expect((await getBusinessSettings(env.DB, { companyId: otherCompany.id })).businessProfile.communicationStyle).toBe('friend');
+	});
+
 	it('impide registrar pagos en modo cliente', async () => {
 		const result = await executeToolSafely('register_payment', {
 			appointment_id: 1,
@@ -213,6 +240,29 @@ describe.sequential('herramientas controladas del backend', () => {
 
 		expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
 		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM payments').first('count')).toBe(0);
+	});
+
+	it('impide crear una cita de cliente antes de su confirmación explícita', async () => {
+		const current = await getBusinessSettings(env.DB);
+		await saveBusinessSettings(env.DB, { ...current, aiMode: 'client' });
+		const args = {
+			customer_name: 'Cliente Audio',
+			service_id: service.id,
+			start_datetime: '2026-07-20T14:00:00.000Z',
+		};
+
+		const denied = await executeToolSafely('create_appointment', args, {
+			...context(),
+			userMessage: 'Quiero agendar mañana a las nueve',
+		});
+		expect(denied).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+		expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM appointments').first('count')).toBe(0);
+
+		const confirmed = await executeToolSafely('create_appointment', args, {
+			...context(),
+			userMessage: 'Sí, todo está correcto',
+		});
+		expect(confirmed.ok).toBe(true);
 	});
 
 	it('registra pagos con trazabilidad de Telegram en modo dueño', async () => {

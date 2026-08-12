@@ -18,6 +18,11 @@ export async function getBusinessSettings(db, { companyId = null } = {}) {
 }
 
 export async function getBotBusinessSettings(db) {
+	const botCompanyId = await getBotCompanyId(db);
+	if (botCompanyId !== null) {
+		return getBusinessSettings(db, { companyId: botCompanyId });
+	}
+
 	const result = await db.prepare(
 		"SELECT key, value FROM settings WHERE key LIKE 'company:%:schedule' ORDER BY key",
 	).all();
@@ -57,6 +62,15 @@ export async function getBotCompanyId(db) {
 }
 
 export async function updateBotCommunicationStyle(db, communicationStyle) {
+	const botCompanyId = await getBotCompanyId(db);
+	if (botCompanyId !== null) {
+		const settings = await getBusinessSettings(db, { companyId: botCompanyId });
+		return saveBusinessSettings(db, {
+			...settings,
+			businessProfile: { ...settings.businessProfile, communicationStyle },
+		}, { companyId: botCompanyId });
+	}
+
 	const result = await db.prepare(
 		"SELECT key, value FROM settings WHERE key LIKE 'company:%:schedule' ORDER BY key",
 	).all();

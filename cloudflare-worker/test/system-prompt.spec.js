@@ -42,4 +42,13 @@ describe('prompt del asistente', () => {
 		expect(prompt).toContain('income_cents');
 		expect(prompt).toContain('cédula/RUC, dirección y teléfono');
 	});
+
+	it('exige un resumen y confirmación posterior antes de agendar', () => {
+		const prompt = buildSystemPrompt({
+			settings: { ...DEFAULT_BUSINESS_SETTINGS, aiMode: 'client' },
+		});
+		expect(prompt).toContain('resumen claro con nombre, servicio, fecha, hora');
+		expect(prompt).toContain('No llames create_appointment en el mismo turno');
+		expect(prompt).toContain('confirmación explícita posterior');
+	});
 });

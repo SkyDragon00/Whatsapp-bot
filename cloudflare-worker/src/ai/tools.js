@@ -152,6 +152,10 @@ async function findSlots(args, context) {
 async function createAppointmentTool(rawArgs, context) {
 	const args = requireArguments(rawArgs);
 	assertAllowedKeys(args, ['customer_name', 'service_id', 'start_datetime', 'phone']);
+	const settings = await getBotBusinessSettings(context.env.DB);
+	if (settings.aiMode === 'client' && !isExplicitConfirmation(context.userMessage)) {
+		throw new ValidationError('Antes de agendar, muestra todos los datos de la cita y espera una confirmación explícita del cliente.');
+	}
 	const created = await createAppointment(
 		context.env.DB,
 		{

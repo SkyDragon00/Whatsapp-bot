@@ -26,4 +26,17 @@ describe('puente de whatsapp-web.js', () => {
 		expect(response.status).toBe(400);
 		expect(await response.json()).toMatchObject({ ok: false });
 	});
+
+	it('valida el contenido base64 de una nota de voz', async () => {
+		const response = await handleWhatsAppWebJsBridge(
+			request({
+				sender: '593999111222@c.us',
+				messageId: 'audio-1',
+				audio: { data: '%%%no-es-base64%%%', mimeType: 'audio/ogg' },
+			}, 'secreto'),
+			{ WHATSAPP_WEBJS_TOKEN: 'secreto' },
+		);
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({ ok: false, error: 'Audio inválido o demasiado grande' });
+	});
 });
