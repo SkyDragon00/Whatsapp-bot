@@ -47,8 +47,17 @@ describe('prompt del asistente', () => {
 		const prompt = buildSystemPrompt({
 			settings: { ...DEFAULT_BUSINESS_SETTINGS, aiMode: 'client' },
 		});
-		expect(prompt).toContain('resumen claro con nombre, servicio, fecha, hora');
+		expect(prompt).toContain('resumen claro con nombre, servicio, precio, fecha, hora');
 		expect(prompt).toContain('No llames create_appointment en el mismo turno');
 		expect(prompt).toContain('confirmación explícita posterior');
+	});
+
+	it('obliga a informar el precio cuando el cliente elige un servicio', () => {
+		const prompt = buildSystemPrompt({
+			settings: { ...DEFAULT_BUSINESS_SETTINGS, aiMode: 'client' },
+		});
+		expect(prompt).toContain('En cuanto el cliente elija o confirme un servicio');
+		expect(prompt).toContain('indica en la misma respuesta el precio configurado');
+		expect(prompt).toContain('Si el servicio no tiene precio configurado, dilo claramente');
 	});
 });

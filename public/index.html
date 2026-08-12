@@ -495,8 +495,15 @@
   }
 
   .settings-card {
-    width: 640px;
+    width: min(1020px, calc(100vw - 32px));
+    max-width: 1020px;
+    max-height: calc(100vh - 32px);
+    border-radius: 20px;
+    box-shadow: 0 24px 70px rgba(32,45,70,.24);
   }
+  #settingsOverlay { padding:16px; backdrop-filter:blur(3px); }
+  #settingsOverlay .modal-header { position:absolute; top:14px; right:14px; z-index:3; padding:0; }
+  #settingsOverlay .modal-close { background:rgba(255,255,255,.8); border:1px solid rgba(218,220,224,.8); }
   .appointment-title-row { display: flex; align-items: center; gap: 8px; padding-right: 28px; }
   .appointment-title-row .modal-title { margin: 0; }
   .payment-button { border: 0; border-radius: 50%; width: 34px; height: 34px; background: #e6f4ea; color: #188038; font-size: 20px; cursor: pointer; }
@@ -551,16 +558,36 @@
   .knowledge-row-meta { color: var(--text-secondary); font-size: 12px; margin-top: 3px; }
   .knowledge-empty { color: var(--text-secondary); font-size: 13px; padding: 18px; text-align:center; border:1px solid #edf0f4; border-radius:12px; background:#fafbfc; }
   .settings-body {
-    padding-bottom: 24px;
-    max-height: calc(100vh - 100px);
+    padding: 0;
+    max-height: calc(100vh - 34px);
     overflow-y: auto;
+    background:#f8fafe;
   }
+  .settings-hero { position:relative; padding:34px 78px 31px 34px; overflow:hidden; border-bottom:1px solid #c8dcfb; background:linear-gradient(120deg,#e8f1ff 0%,#f3f7ff 52%,#e6f0ff 100%); }
+  .settings-hero::before { content:''; position:absolute; left:0; top:0; width:6px; height:100%; background:linear-gradient(#1a73e8,#6759d5); }
+  .settings-hero::after { content:''; position:absolute; right:-38px; bottom:-85px; width:220px; height:220px; border-radius:50%; border:28px solid rgba(26,115,232,.06); background:rgba(26,115,232,.05); }
+  .settings-heading { position:relative; z-index:1; display:flex; align-items:center; gap:15px; }
+  .settings-heading-icon { display:grid; place-items:center; width:48px; height:48px; flex:0 0 48px; border-radius:15px; color:#fff; background:linear-gradient(145deg,#1a73e8,#6759d5); box-shadow:0 8px 20px rgba(58,87,181,.25); }
+  .settings-hero .modal-title { margin:0 0 4px; color:#174ea6; font-size:25px; font-weight:600; }
+  .settings-hero p { margin:0; color:var(--text-secondary); font-size:13px; line-height:1.5; }
+  .settings-content { display:grid; gap:16px; padding:22px 24px 8px; background:#f5f8fd; }
   .settings-section {
-    margin-bottom: 22px;
+    margin:16px 24px;
+    padding:20px;
+    border:1px solid #dbe6f6;
+    border-radius:15px;
+    background:#fff;
+    box-shadow:0 6px 20px rgba(32,70,130,.055);
   }
   .settings-section:last-child {
     margin-bottom: 0;
   }
+  .settings-section-title { display:flex; align-items:flex-start; gap:11px; margin-bottom:18px; }
+  .settings-section-icon { display:grid; place-items:center; width:34px; height:34px; flex:0 0 34px; border:1px solid #d5e4fb; border-radius:10px; color:#1967d2; background:linear-gradient(145deg,#edf5ff,#e5efff); }
+  .settings-section-title h3 { margin:0 0 3px; font:600 16px 'Google Sans','Roboto',sans-serif; color:#174ea6; }
+  .settings-section-title p { margin:0; color:var(--text-secondary); font-size:12px; line-height:1.45; }
+  .settings-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  .settings-fields .full-width { grid-column:1 / -1; }
   .field-label {
     display: block;
     font-size: 13px;
@@ -569,7 +596,7 @@
     margin-bottom: 8px;
   }
   .duration-input {
-    width: 140px;
+    width: 100%;
     border: 1px solid var(--border);
     border-radius: 6px;
     color: var(--text);
@@ -584,6 +611,8 @@
     font: inherit;
     padding: 9px 10px;
   }
+  .settings-card .wide-input,.settings-card .duration-input,.settings-card .time-input,.settings-card .service-row input[type="text"],.settings-card .service-row input[type="number"] { min-height:42px; border-color:#d5e1f2; border-radius:10px; background:#f9fbff; transition:border-color .16s,box-shadow .16s,background .16s; }
+  .settings-card input:focus { outline:0; border-color:#7baaf7; background:#fff; box-shadow:0 0 0 3px rgba(26,115,232,.1); }
   textarea.wide-input {
     min-height: 72px;
     resize: vertical;
@@ -602,6 +631,18 @@
     display: grid;
     gap: 10px;
   }
+  .services-columns {
+    display:grid;
+    grid-template-columns:minmax(150px,2fr) minmax(160px,3fr) 95px 95px auto;
+    gap:8px;
+    padding:0 11px 7px;
+    color:#5f6f86;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.035em;
+    text-transform:uppercase;
+  }
+  .services-columns span:last-child { text-align:center; }
   .service-row {
     display: grid;
     grid-template-columns: minmax(150px, 2fr) minmax(160px, 3fr) 95px 95px auto;
@@ -638,6 +679,10 @@
     align-items: center;
     gap: 12px;
     min-height: 44px;
+    padding:7px 10px;
+    border-radius:10px;
+    border:1px solid #e3ebf7;
+    background:#f6f9fe;
   }
   .day-name {
     font-size: 14px;
@@ -663,8 +708,19 @@
     display: flex;
     justify-content: flex-end;
     gap: 10px;
-    margin-top: 24px;
+    position:sticky;
+    bottom:0;
+    z-index:2;
+    margin-top:8px;
+    padding:16px 24px;
+    border-top:1px solid #d7e3f4;
+    background:rgba(255,255,255,.94);
+    backdrop-filter:blur(8px);
   }
+  .settings-error:not(:empty) { margin:0 24px; padding:12px 14px; border-radius:10px; background:#fce8e6; }
+  .settings-actions .primary-button { min-width:150px; border-radius:10px; box-shadow:0 5px 14px rgba(26,115,232,.22); }
+  #servicesSection #addService { margin-top:12px; border:1px solid #c9dcf8; border-radius:9px; background:#f3f7ff; }
+  #servicesSection #addService:hover { background:#e8f0fe; }
   .text-button,
   .primary-button,
   .danger-button {
@@ -896,6 +952,16 @@
     .service-row {
       grid-template-columns: 1fr;
     }
+    .services-columns { display:none; }
+    .settings-card { width:calc(100vw - 20px); max-height:calc(100vh - 20px); border-radius:16px; }
+    .settings-body { max-height:calc(100vh - 22px); }
+    .settings-hero { padding:24px 58px 22px 18px; }
+    .settings-heading { align-items:flex-start; gap:12px; }
+    .settings-heading-icon { width:42px; height:42px; flex-basis:42px; border-radius:13px; }
+    .settings-hero .modal-title { font-size:21px; }
+    .settings-section { margin:12px; padding:16px 14px; border-radius:13px; }
+    .settings-actions { padding:13px 14px; }
+    .settings-actions .primary-button { min-width:120px; }
     .style-options { grid-template-columns: 1fr; }
     .customers-hero { flex-direction:column; }
     .customers-hero { gap:18px; margin-bottom:12px; padding:18px 16px; border-radius:14px; }
@@ -1492,7 +1558,12 @@
       </button>
     </div>
     <form class="modal-body settings-body" id="settingsForm">
-      <h2 class="modal-title">Configuracion</h2>
+      <div class="settings-hero">
+        <div class="settings-heading">
+          <span class="settings-heading-icon"><svg width="25" height="25" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19 13.5v-3l-2-.7a7 7 0 0 0-.6-1.4l.9-1.9-2.1-2.1-1.9.9a7 7 0 0 0-1.4-.6L11.2 3h-3l-.7 1.7a7 7 0 0 0-1.4.6l-1.9-.9-2.1 2.1.9 1.9a7 7 0 0 0-.6 1.4l-1.7.7v3l1.7.7a7 7 0 0 0 .6 1.4l-.9 1.9 2.1 2.1 1.9-.9a7 7 0 0 0 1.4.6l.7 1.7h3l.7-1.7a7 7 0 0 0 1.4-.6l1.9.9 2.1-2.1-.9-1.9a7 7 0 0 0 .6-1.4l2-.7Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>
+          <div><h2 class="modal-title">Configuración</h2><p>Administra los horarios, las reservas y los servicios de tu negocio.</p></div>
+        </div>
+      </div>
 
       <div class="settings-section">
         <label class="field-label" for="businessName">Nombre comercial</label>
@@ -1500,7 +1571,7 @@
       </div>
 
       <div class="settings-section">
-        <label class="field-label" for="appointmentDuration">Duracion de cada cita (minutos)</label>
+        <label class="field-label" for="appointmentDuration">Duración de cada cita (minutos)</label>
         <input class="duration-input" id="appointmentDuration" name="appointmentDuration" type="number" min="15" max="480" step="15" required />
       </div>
 
@@ -1527,17 +1598,20 @@
       </div>
 
       <div class="settings-section">
-        <div class="field-label">Horario de atencion</div>
+        <div class="settings-section-title"><span class="settings-section-icon">◷</span><div><h3>Horario de atención</h3><p>Activa los días laborables y define la apertura y el cierre.</p></div></div>
         <div class="hours-list" id="businessHoursList"></div>
       </div>
 
       <div class="settings-section">
-        <label class="field-label" for="closedDates">Dias cerrados (AAAA-MM-DD, separados por coma)</label>
+        <div class="settings-section-title"><span class="settings-section-icon">×</span><div><h3>Días cerrados</h3><p>Agrega fechas excepcionales separadas por coma.</p></div></div>
         <input class="wide-input" id="closedDates" type="text" placeholder="2026-12-25, 2027-01-01" />
       </div>
 
       <div class="settings-section" id="servicesSection">
-        <div class="field-label">Servicios</div>
+        <div class="settings-section-title"><span class="settings-section-icon">✦</span><div><h3>Servicios</h3><p>Configura nombre, duración, precio y disponibilidad.</p></div></div>
+        <div class="services-columns" aria-hidden="true">
+          <span>Nombre</span><span>Descripción</span><span>Duración (min)</span><span>Precio ($)</span><span>Estado</span>
+        </div>
         <div class="services-list" id="servicesList"></div>
         <button class="text-button" type="button" id="addService">+ Agregar servicio</button>
       </div>

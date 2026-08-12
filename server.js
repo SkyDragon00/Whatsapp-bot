@@ -27,8 +27,8 @@ function startServer() {
     }
   });
 
-  const PORT = 3000;
-  app.listen(PORT, () => {
+  const PORT = Number(process.env.PORT) || 3000;
+  return app.listen(PORT, () => {
     console.log(`🌐 Calendario disponible en http://localhost:${PORT}`);
   });
 }

@@ -1,10 +1,6 @@
 # Dependencias
 node_modules/
 
-# Sesión de WhatsApp (IMPORTANTE: contiene tu sesión autenticada, nunca lo subas)
-.wwebjs_auth/
-.wwebjs_cache/
-
 # Variables de entorno
 .env
 .env.local
@@ -24,6 +20,6 @@ Thumbs.db
 .idea/
 *.swp
 
-# Build/dist si algún día compilas algo
+# Build/dist
 dist/
 build/

@@ -1,286 +1,97 @@
-﻿# Asistente de citas y gestión de negocio
+# Asistente de citas y gestión de negocio
 
-Este repositorio contiene dos proyectos relacionados:
+Asistente serverless desplegado en Cloudflare Workers. Recibe mensajes mediante la API oficial de WhatsApp Cloud de Meta y Telegram, usa Gemini para la conversación y administra citas, servicios, clientes, gastos, pagos y documentos de conocimiento.
 
-1. **Bot local de WhatsApp**: prototipo que agenda citas mediante una conversación guiada, usa SQLite y publica un calendario con Express.
-2. **Asistente serverless en Cloudflare**: evolución para Telegram con Gemini, disponibilidad real, gestión de citas, servicios, gastos, pagos, documentos de conocimiento y dashboard web.
-
-> La implementación de Cloudflare es la versión más completa. Ambos proyectos comparten el dashboard de `public/`, pero utilizan backends y modelos de datos diferentes.
-
-## Funcionalidades
-
-### WhatsApp + Express
-
-- Vinculación por QR y persistencia de sesión con `LocalAuth`.
-- Detección de intenciones como “cita”, “agendar” o “reservar”.
-- Flujo para solicitar nombre completo, servicio, fecha y hora.
-- Interpretación de fechas en español como “mañana a las 3pm” con `chrono-node`.
-- Validación del día, horario de atención y duración de la cita.
-- Persistencia de citas y configuración en `citas.db`.
-- API local y dashboard en `http://localhost:3000`.
-
-El estado de cada conversación se guarda en memoria; se pierde al reiniciar el proceso, pero las citas confirmadas permanecen en SQLite.
-
-### Cloudflare + Telegram + Gemini
-
-#### Asistente y agenda
-
-- Webhook de Telegram con procesamiento asíncrono e idempotencia contra mensajes duplicados.
-- Conversación en español con historial temporal en Cloudflare KV.
-- Comandos `/start` y `/cancelar` para iniciar o limpiar el contexto.
-- Modo **cliente**: consulta servicios, horarios y disponibilidad; agenda, lista y cancela sus citas.
-- Modo **dueño**: además agenda para clientes y registra pagos recibidos.
-- Estilos de comunicación formal, semiformal o amigo.
-- Herramientas de Gemini para consultar configuración y servicios, buscar espacios, crear citas, consultar citas, cancelar y registrar pagos.
-- Catálogo de servicios con descripción, duración, precio y estado.
-- Horarios por día, zona horaria IANA, intervalo de slots, anticipación mínima, horizonte máximo y fechas cerradas.
-- Búsqueda por fecha, rango, período del día o una hora exacta.
-- Validación de horario, duración, anticipación y conflictos antes de escribir.
-- Triggers de D1 como última barrera contra intervalos inválidos y solapamientos.
-- Cancelación por el cliente con comprobación de propiedad; cancelación y reprogramación administrativa.
-
-#### Gastos, pagos y conocimiento
-
-- Registro, listado y eliminación de gastos desde el dashboard/API.
-- Captura de gastos desde Telegram en modo dueño mediante texto, foto de factura/recibo o audio.
-- Extracción estructurada con Gemini de monto, moneda, descripción, categoría, comercio, fecha y confianza.
-- Confirmación obligatoria por “sí” o “no” antes de guardar un gasto detectado por IA.
-- Protección contra reprocesamiento del mismo archivo y expiración de pendientes.
-- Registro conversacional de pagos recibidos, previa confirmación de los datos.
-- Carga de documentos TXT, Markdown, CSV y JSON: 100 KB por archivo y 500 KB totales.
-- Respuestas informativas basadas exclusivamente en D1 y documentos autorizados; si la respuesta no existe, el bot indica que no la conoce.
-
-#### Dashboard administrativo
-
-- Calendario FullCalendar, detalle, cancelación y reprogramación de citas.
-- Visualización opcional de citas canceladas.
-- Administración de agenda, servicios, perfil del negocio, modo/estilo de IA y documentos.
-- Registro manual, resumen, listado y eliminación de gastos.
-- Token Bearer almacenado solamente en `sessionStorage`.
-- Menú adaptable a pantallas pequeñas.
-- **Facturación** aparece como módulo futuro; todavía no crea ni administra facturas.
+El servidor local de calendario y su base `citas.db` se conservan para compatibilidad. Ya no existe ningún cliente local de WhatsApp, vinculación por QR ni puente basado en WhatsApp Web.
 
 ## Arquitectura
 
 ```text
-Proyecto local
-WhatsApp -> whatsapp-web.js -> flujo en memoria -> SQLite (citas.db)
-                                  |
-                                  +-> Express API -> public/index.html
+WhatsApp Cloud API -> /whatsapp-webhook --+
+Telegram Bot API  -> /telegram-webhook ---+-> Gemini + herramientas -> D1
+                                             |                    +-> KV
+                                             +-> flujos de gastos +-> R2
 
-Proyecto Cloudflare
-Telegram -> /telegram-webhook -> router de mensajes
-                                  |-> Gemini + herramientas -> D1
-                                  |                       +-> KV
-                                  +-> flujo multimodal de gastos
-
-Navegador -> Static Assets -> public/index.html -> /api/* -> repositorios -> D1
-                                                    |
-                                                    +-> CORS + Bearer token
+Navegador -> Static Assets -> public/index.html -> /api/* -> D1
 ```
 
-### Capas del Worker
+- `cloudflare-worker/src/routes/whatsapp.js`: verificación y webhook oficial de Meta.
+- `cloudflare-worker/src/integrations/whatsapp.js`: envío mediante Graph API.
+- `cloudflare-worker/src/routes/telegram.js`: webhook de Telegram.
+- `cloudflare-worker/src/ai/`: prompt, herramientas y ejecución de Gemini.
+- `cloudflare-worker/src/repositories/`: acceso a D1.
+- `cloudflare-worker/src/conversation/`: historial temporal en KV.
+- `public/index.html`: dashboard administrativo servido como Static Asset.
 
-| Capa | Ubicación | Responsabilidad |
-| --- | --- | --- |
-| Entrada HTTP | `cloudflare-worker/src/index.js` | Enruta health check, webhook, API y assets. |
-| Rutas | `src/routes/` | Convierte HTTP/Telegram en casos de uso. |
-| Seguridad | `src/middleware/admin.js` | CORS y autenticación Bearer administrativa. |
-| IA | `src/ai/` | Prompt, herramientas, ciclo de Gemini y ejecución segura. |
-| Gastos | `src/expenses/` | Enrutamiento multimodal, extracción y confirmación. |
-| Dominio | `src/domain/` | Validación, fechas, zonas horarias, disponibilidad y errores. |
-| Repositorios | `src/repositories/` | Acceso a D1. |
-| Conversación | `src/conversation/` | Historial temporal en KV. |
-| Integraciones | `src/integrations/` | API de Telegram. |
-| Frontend | `public/index.html` | SPA administrativa sin framework. |
-
-### Persistencia
-
-**D1** es la fuente de verdad de la versión Cloudflare:
-
-- `appointments`: citas, cliente, servicio, intervalo, estado y origen.
-- `services`: catálogo, duración, precio y disponibilidad.
-- `settings`: agenda, políticas, modo de IA y perfil en JSON.
-- `expenses`: egresos confirmados.
-- `payments`: pagos recibidos registrados por el dueño.
-- `ai_knowledge_documents`: contenido textual autorizado para el bot.
-
-**KV (`CONVERSATIONS`)** almacena datos temporales: historial de chat, deduplicación de actualizaciones, gastos pendientes y control de archivos ya procesados.
-
-### Flujo de una cita
-
-1. Telegram envía una actualización al webhook.
-2. El Worker reclama su identificador en KV, responde inmediatamente y continúa en segundo plano.
-3. Carga configuración, historial y documentos autorizados.
-4. Gemini solicita herramientas cuando necesita datos reales.
-5. La disponibilidad combina horarios, cierres, reglas, duración y citas activas.
-6. Tras la confirmación, el repositorio vuelve a validar y escribe en D1.
-7. El Worker responde al usuario y actualiza el historial en KV.
-
-### Flujo de un gasto
-
-1. En modo dueño se reconoce texto explícito, una foto o un audio.
-2. Los archivos se descargan desde Telegram y su identificador se bloquea temporalmente.
-3. Gemini devuelve datos conforme a un JSON Schema cerrado.
-4. El bot muestra la extracción y solicita confirmación.
-5. Solo una respuesta afirmativa crea el gasto en D1.
-
-## Tecnologías
-
-| Área | Tecnologías |
-| --- | --- |
-| Proyecto local | Node.js, CommonJS, Express 5, CORS |
-| WhatsApp | `whatsapp-web.js`, `qrcode-terminal` |
-| Fechas y datos locales | `chrono-node`, SQLite, `better-sqlite3` |
-| Serverless | Cloudflare Workers, JavaScript ES Modules |
-| Datos cloud | Cloudflare D1 y Cloudflare KV |
-| IA | Google Gemini API, function calling y respuestas estructuradas |
-| Mensajería | Telegram Bot API y webhooks |
-| Frontend | HTML, CSS y JavaScript; FullCalendar 6 y Luxon 3 |
-| Assets y despliegue | Workers Static Assets, Wrangler 4 |
-| Pruebas | Vitest, `@cloudflare/vitest-pool-workers` |
-| Operación | Workers Observability, source maps y logs estructurados |
-
-## Estructura
-
-```text
-.
-|-- index.js                    # Bot local de WhatsApp
-|-- server.js                   # Express y API local
-|-- settings.js                 # Horario local
-|-- db.js / citas.db            # SQLite local
-|-- public/index.html           # Dashboard compartido
-`-- cloudflare-worker/
-    |-- src/                    # Worker por capas
-    |-- migrations/             # Migraciones incrementales de D1
-    |-- schema.sql              # Snapshot del esquema final
-    |-- test/                   # Pruebas
-    `-- wrangler.jsonc          # Bindings, variables y assets
-```
-
-## Ejecutar el proyecto local
-
-Requiere Node.js, npm, una cuenta de WhatsApp capaz de vincular dispositivos y el Worker desplegado.
-
-Guarda un token compartido en el Worker:
+## Desarrollo
 
 ```bash
 cd cloudflare-worker
-npx wrangler secret put WHATSAPP_WEBJS_TOKEN
+npm install
+npm run dev
 ```
 
-Configura la URL pública y el mismo token antes de iniciar el cliente local. En PowerShell:
+El dashboard se sirve en `/`, el diagnóstico en `GET /health` y las rutas administrativas bajo `/api/*`.
 
-```powershell
-$env:WHATSAPP_ASSISTANT_URL = 'https://tu-worker.workers.dev'
-$env:WHATSAPP_WEBJS_TOKEN = 'la-misma-clave-secreta'
+Para levantar el calendario local existente:
+
+```bash
 npm install
 npm start
 ```
 
-Escanea el QR desde **WhatsApp > Dispositivos vinculados**. Los mensajes privados de texto se procesarán con el mismo asistente virtual, configuración, D1 e historial que Telegram.
+Este proceso abre `http://localhost:3000` y conserva sus datos en `citas.db`; no se conecta a WhatsApp. Las citas recibidas por la API oficial de Meta se persisten en D1 y se consultan desde el dashboard servido por el Worker.
 
-| Método | Ruta local | Uso |
-| --- | --- | --- |
-| `GET` | `/api/appointments` | Lista citas por fecha. |
-| `GET` | `/api/settings` | Obtiene duración y horario. |
-| `PUT` | `/api/settings` | Actualiza duración y horario. |
+## Configuración de WhatsApp Cloud API
 
-## Ejecutar el proyecto Cloudflare
+Guarda los secretos con Wrangler:
 
-### 1. Dependencias y recursos
-
-```bash
-cd cloudflare-worker
-npm install
+```powershell
+npx wrangler secret put WHATSAPP_VERIFY_TOKEN
+npx wrangler secret put WHATSAPP_ACCESS_TOKEN_NEW
+npx wrangler secret put WHATSAPP_PHONE_NUMBER_ID
+npx wrangler secret put META_APP_SECRET
 ```
 
-El Worker requiere los bindings `DB` (D1), `CONVERSATIONS` (KV) y `ASSETS` (`../public`), declarados en `wrangler.jsonc`. Para infraestructura nueva, reemplaza allí los identificadores de D1 y KV por los de tu cuenta.
+En Meta configura:
 
-### 2. Secretos y variables
+- Callback URL: `https://TU-WORKER.workers.dev/whatsapp-webhook`
+- Verify token: el valor de `WHATSAPP_VERIFY_TOKEN`
+- Campo suscrito: `messages`
 
-```bash
+`WHATSAPP_GRAPH_API_VERSION` permite cambiar opcionalmente la versión de Graph API. El Worker prioriza `WHATSAPP_ACCESS_TOKEN_NEW` y conserva `WHATSAPP_ACCESS_TOKEN` como compatibilidad temporal con instalaciones anteriores.
+
+## Otros secretos y variables
+
+```powershell
 npx wrangler secret put TELEGRAM_BOT_TOKEN
 npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put ADMIN_API_TOKEN
 ```
 
-No guardes secretos en Git ni en `wrangler.jsonc`. En desarrollo pueden estar en un archivo no versionado `cloudflare-worker/.dev.vars`.
+Los bindings `DB` (D1), `CONVERSATIONS` (KV), `RECEIPTS` (R2) y `ASSETS` están declarados en `cloudflare-worker/wrangler.jsonc`. No guardes secretos en Git ni en ese archivo; para desarrollo usa `cloudflare-worker/.dev.vars`, que no se versiona.
 
-| Variable | Uso |
-| --- | --- |
-| `ADMIN_ALLOWED_ORIGINS` | Orígenes CORS adicionales, separados por comas. |
-| `GEMINI_DIAGNOSTICS` | Activa diagnósticos controlados con `true`. |
-| `BUSINESS_CURRENCY` | Moneda ISO 4217; por defecto `USD`. |
-| `EXPENSE_CATEGORIES` | Categorías de extracción separadas por comas. |
-
-### 3. Migraciones
-
-```bash
-# Desarrollo local
-npx wrangler d1 migrations apply appointments-db --local
-
-# Entorno publicado (solo cuando se quiera modificar la base remota)
-npx wrangler d1 migrations apply appointments-db --remote
-```
-
-Aplica `migrations/` en orden. `schema.sql` documenta el estado final, pero no sustituye el historial incremental de una base existente.
-
-### 4. Desarrollo, pruebas y despliegue
-
-```bash
-npm run dev
-npm test
-npm run deploy
-```
-
-El dashboard se sirve en `/` y el diagnóstico en `GET /health`.
-
-### 5. Webhook de Telegram
-
-Tras desplegar, registra la URL pública:
-
-```bash
-curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
-  -d "url=https://<WORKER>/telegram-webhook"
-```
-
-Sustituye los marcadores localmente; nunca publiques el token en documentación, commits o logs.
-
-## API administrativa del Worker
-
-Todas las rutas `/api/*` usan CORS y protección administrativa. En hosts locales se permiten solicitudes sin credenciales. Un Worker publicado requiere `ADMIN_API_TOKEN` y `Authorization: Bearer <token>`; admite su propio origen, hosts locales y `ADMIN_ALLOWED_ORIGINS`.
-
-| Método | Ruta | Uso |
-| --- | --- | --- |
-| `GET` | `/api/appointments?include_cancelled=true` | Lista citas. |
-| `POST` | `/api/appointments/:id/cancel` | Cancela; cuerpo `{}`. |
-| `POST` | `/api/appointments/:id/reschedule` | Reprograma con `start_at` y `service_id` opcional. |
-| `GET`, `PUT` | `/api/settings` | Lee o actualiza configuración. |
-| `GET`, `POST` | `/api/services` | Lista o crea servicios. |
-| `PUT` | `/api/services/:id` | Actualiza un servicio. |
-| `GET`, `POST` | `/api/expenses` | Lista o crea gastos. |
-| `DELETE` | `/api/expenses/:id` | Elimina un gasto. |
-| `GET`, `POST` | `/api/ai-documents` | Lista o carga documentos. |
-| `DELETE` | `/api/ai-documents/:id` | Elimina un documento. |
-
-Rutas públicas: `GET /` (dashboard), `GET /health` (diagnóstico) y `POST /telegram-webhook`.
-
-## Seguridad y límites actuales
-
-- El Bearer token sirve para administración controlada; una aplicación multiusuario debería usar identidad y sesiones reales, por ejemplo Cloudflare Access.
-- El dashboard guarda el token solo en `sessionStorage`; nunca debe incrustarse en HTML.
-- Gemini no es fuente de verdad: servicios, horarios, citas y configuración proceden de D1.
-- Los documentos se tratan como datos informativos, no como instrucciones para el modelo.
-- El prototipo WhatsApp permite CORS abierto y no impide citas solapadas; la versión Cloudflare sí incorpora esas protecciones.
-- No existe integración con Google Calendar.
-- Telegram aún no reprograma conversacionalmente; la reprogramación está disponible en el dashboard/API.
-
-## Pruebas
-
-La suite cubre rutas y seguridad, Telegram e idempotencia, Gemini y sus herramientas, configuración y prompts, documentos, zonas horarias, disponibilidad y conflictos, repositorios, y extracción/confirmación de gastos.
+## Migraciones, pruebas y despliegue
 
 ```bash
 cd cloudflare-worker
+
+# Base local
+npx wrangler d1 migrations apply appointments-db --local
+
+# Verificación
 npm test
+
+# Despliegue
+npm run deploy
 ```
+
+Aplicar migraciones o desplegar contra recursos remotos modifica producción y debe hacerse de forma intencional.
+
+## Persistencia
+
+- D1 es la fuente de verdad de citas, clientes, servicios, configuración, gastos, pagos y documentos.
+- KV almacena historial temporal, deduplicación y estados pendientes.
+- R2 almacena comprobantes.
+
+La API administrativa usa sesiones y aislamiento por empresa. Consulta `cloudflare-worker/README.md` para detalles operativos del webhook y del dashboard.
