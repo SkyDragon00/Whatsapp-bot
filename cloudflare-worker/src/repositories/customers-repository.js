@@ -52,11 +52,28 @@ export async function findOrCreateCustomer(db, input, { now = new Date(), compan
 			 WHERE id = ?12`,
 		).bind(...values, existing.id).run();
 	} else {
-		await db.prepare(
-			`INSERT INTO customers (first_name, last_name, full_name, cedula_ruc, address, phone,
-				telegram_user_id, telegram_chat_id, telegram_username, created_at, updated_at, company_id)
-			 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, ?11)`,
-		).bind(...values).run();
+		try {
+			await db.prepare(
+				`INSERT INTO customers (first_name, last_name, full_name, cedula_ruc, address, phone,
+					telegram_user_id, telegram_chat_id, telegram_username, created_at, updated_at, company_id)
+				 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10, ?11)`,
+			).bind(...values).run();
+		} catch (error) {
+			if (!String(error?.message ?? '').includes('UNIQUE constraint failed')) throw error;
+			const concurrentlyCreated = await db.prepare(
+				'SELECT id FROM customers WHERE full_name = ?1 COLLATE NOCASE AND company_id IS ?2 LIMIT 1',
+			).bind(name.full_name, companyId).first();
+			if (!concurrentlyCreated) throw error;
+			await db.prepare(
+				`UPDATE customers SET
+					telegram_user_id = COALESCE(?7, telegram_user_id),
+					telegram_chat_id = COALESCE(?8, telegram_chat_id),
+					telegram_username = COALESCE(?9, telegram_username),
+					cedula_ruc = COALESCE(?4, cedula_ruc), address = COALESCE(?5, address),
+					phone = COALESCE(phone, ?6), updated_at = ?10
+				 WHERE id = ?12`,
+			).bind(...values, concurrentlyCreated.id).run();
+		}
 	}
 	return db.prepare('SELECT * FROM customers WHERE full_name = ?1 COLLATE NOCASE AND company_id IS ?2 LIMIT 1').bind(name.full_name, companyId).first();
 }

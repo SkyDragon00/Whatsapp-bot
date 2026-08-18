@@ -82,6 +82,37 @@ describe.sequential('repositorios D1', () => {
 		});
 	});
 
+	it('permite el mismo nombre de cliente en empresas diferentes', async () => {
+		const suffix = crypto.randomUUID().slice(0, 8);
+		const firstCompany = await env.DB.prepare('INSERT INTO companies (name) VALUES (?1) RETURNING id')
+			.bind(`Empresa A ${suffix}`).first();
+		const secondCompany = await env.DB.prepare('INSERT INTO companies (name) VALUES (?1) RETURNING id')
+			.bind(`Empresa B ${suffix}`).first();
+		await Promise.all([
+			saveBusinessSettings(env.DB, businessSettings(), { companyId: firstCompany.id }),
+			saveBusinessSettings(env.DB, businessSettings(), { companyId: secondCompany.id }),
+		]);
+		const firstService = await createService(env.DB, {
+			name: `Masaje A ${suffix}`, duration_minutes: 60, price_cents: 2000, enabled: true,
+		}, { companyId: firstCompany.id });
+		const secondService = await createService(env.DB, {
+			name: `Masaje B ${suffix}`, duration_minutes: 60, price_cents: 2000, enabled: true,
+		}, { companyId: secondCompany.id });
+
+		const first = await createAppointment(env.DB, appointmentInput({
+			customer_name: 'Patricio Estrella', service_id: firstService.id, source_update_id: `company-a-${suffix}`,
+		}), { now: testNow, companyId: firstCompany.id });
+		const second = await createAppointment(env.DB, appointmentInput({
+			customer_name: 'Patricio Estrella', service_id: secondService.id, source_update_id: `company-b-${suffix}`,
+		}), { now: testNow, companyId: secondCompany.id });
+
+		expect(first.customer_id).not.toBe(second.customer_id);
+		const customers = await env.DB.prepare(
+			"SELECT company_id FROM customers WHERE full_name = 'Patricio Estrella' ORDER BY company_id",
+		).all();
+		expect(customers.results.map((customer) => customer.company_id)).toEqual([firstCompany.id, secondCompany.id]);
+	});
+
 	it('acepta IDs largos de mensajes de WhatsApp como clave de idempotencia', async () => {
 		const sourceUpdateId = `whatsapp:wamid.${'A'.repeat(180)}`;
 		const created = await createAppointment(

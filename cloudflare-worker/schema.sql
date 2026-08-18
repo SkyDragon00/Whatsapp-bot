@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS customers (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	first_name TEXT NOT NULL,
 	last_name TEXT NOT NULL,
-	full_name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+	full_name TEXT NOT NULL COLLATE NOCASE,
 	cedula_ruc TEXT,
 	address TEXT,
 	phone TEXT,
@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS customers (
 	telegram_chat_id TEXT,
 	telegram_username TEXT,
 	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	company_id INTEGER REFERENCES companies(id)
 );
 
 CREATE TABLE IF NOT EXISTS appointments (
@@ -116,6 +117,7 @@ CREATE TABLE IF NOT EXISTS users (
 	password_salt TEXT NOT NULL,
 	password_iterations INTEGER NOT NULL,
 	role TEXT NOT NULL CHECK (role IN ('admin', 'super_admin')),
+	phone_e164 TEXT,
 	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -138,6 +140,11 @@ CREATE INDEX IF NOT EXISTS idx_appointments_telegram_user ON appointments(telegr
 CREATE INDEX IF NOT EXISTS idx_appointments_customer ON appointments(customer_id, start_at DESC);
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(last_name COLLATE NOCASE, first_name COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_customers_telegram_user ON customers(telegram_user_id);
+CREATE INDEX IF NOT EXISTS idx_customers_company ON customers(company_id, last_name, first_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_company_full_name
+	ON customers(company_id, full_name COLLATE NOCASE) WHERE company_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_legacy_full_name
+	ON customers(full_name COLLATE NOCASE) WHERE company_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_services_enabled_name ON services(enabled, name);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_source_update ON appointments(source_update_id)
 WHERE source_update_id IS NOT NULL;
@@ -152,6 +159,7 @@ WHERE source_update_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_ai_knowledge_documents_created
 	ON ai_knowledge_documents(created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_e164 ON users(phone_e164) WHERE phone_e164 IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
 

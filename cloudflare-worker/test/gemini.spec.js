@@ -10,10 +10,47 @@ function geminiResponse(parts) {
 }
 
 describe('bucle de herramientas de Gemini', () => {
+	it('no anuncia una cita hasta que create_appointment confirma la escritura', async () => {
+		const fetchImpl = vi.fn()
+			.mockResolvedValueOnce(geminiResponse([{ text: 'Listo, tu cita quedó confirmada.' }]))
+			.mockResolvedValueOnce(geminiResponse([{ functionCall: {
+				name: 'create_appointment',
+				args: { customer_name: 'María Hanchett', service_id: 4, start_datetime: '2026-08-20T15:00:00.000Z' },
+			} }]));
+		const executeToolResult = vi.fn().mockResolvedValue({
+			ok: true,
+			data: { appointment: { id: 81, customer_name: 'María Hanchett', service_name: 'Corte Barba' } },
+		});
+
+		const result = await runGeminiAgent({
+			apiKey: 'test-key',
+			systemPrompt: 'Prompt',
+			history: [{ role: 'model', text: '¿Está todo correcto? Confírmame para dejar la cita agendada.' }],
+			userMessage: 'Sí', toolContext: {}, fetchImpl, executeToolResult,
+		});
+
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(executeToolResult).toHaveBeenCalledWith('create_appointment', expect.any(Object), {});
+		expect(result).toContain('registrada correctamente en la agenda');
+	});
+
+	it('informa el fallo de escritura sin afirmar que la cita fue confirmada', async () => {
+		const result = await runGeminiAgent({
+			apiKey: 'test-key', systemPrompt: 'Prompt', userMessage: 'Sí', toolContext: {},
+			fetchImpl: vi.fn().mockResolvedValue(geminiResponse([{ functionCall: {
+				name: 'create_appointment', args: { customer_name: 'María', service_id: 4, start_datetime: '2026-08-20T15:00:00.000Z' },
+			} }])),
+			executeToolResult: vi.fn().mockResolvedValue({ ok: false, error: { message: 'El horario ya no está disponible.' } }),
+		});
+
+		expect(result).toContain('No pude agendar la cita');
+		expect(result).toContain('no quedó confirmada');
+	});
+
 	it('solo anuncia el alta de onboarding cuando la herramienta confirma la escritura', async () => {
 		const call = geminiResponse([{ functionCall: {
 			name: 'register_business_from_onboarding',
-			args: { business_name: 'Peludos Amigos', username: 'Ana', password: 'temporal-123', communication_style: 'friend' },
+			args: { business_name: 'Peludos Amigos', username: 'Ana', communication_style: 'friend' },
 		} }]);
 		const successFetch = vi.fn().mockResolvedValue(call);
 		const success = await runGeminiAgent({
@@ -22,6 +59,7 @@ describe('bucle de herramientas de Gemini', () => {
 			executeToolResult: vi.fn().mockResolvedValue({ ok: true, data: { businessName: 'Peludos Amigos', username: 'Ana' } }),
 		});
 		expect(success).toContain('fueron creados correctamente');
+		expect(success).toContain('12345678');
 		expect(successFetch).toHaveBeenCalledTimes(1);
 
 		const failure = await runGeminiAgent({

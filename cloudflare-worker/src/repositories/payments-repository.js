@@ -85,7 +85,7 @@ const CONSUMER_FINAL_DATA = Object.freeze({
 	phone: '029999999',
 });
 
-export async function createOwnerChatPayment(db, input, { now = new Date() } = {}) {
+export async function createOwnerChatPayment(db, input, { now = new Date(), companyId = null } = {}) {
 	const appointmentId = requirePositiveInteger(input.appointment_id, 'La cita');
 	const amountCents = Math.round(Number(input.amount) * 100);
 	if (!Number.isFinite(Number(input.amount)) || amountCents < 1 || Math.abs(Number(input.amount) * 100 - amountCents) > 0.000001) {
@@ -107,8 +107,8 @@ export async function createOwnerChatPayment(db, input, { now = new Date() } = {
 		};
 	const appointment = await db.prepare(
 		`SELECT a.id, a.customer_id, a.patient_name, a.service_id, a.service_name, a.service, a.company_id
-		 FROM appointments a WHERE a.id = ?1 LIMIT 1`,
-	).bind(appointmentId).first();
+		 FROM appointments a WHERE a.id = ?1 AND (?2 IS NULL OR a.company_id = ?2) LIMIT 1`,
+	).bind(appointmentId, companyId).first();
 	if (!appointment) throw new ValidationError('No se encontró la cita seleccionada.');
 	if (!appointment.customer_id) throw new ValidationError('La cita seleccionada no tiene un cliente asociado.');
 

@@ -16,7 +16,7 @@ function optionalDate(value, label) {
 	return normalized;
 }
 
-export async function getOutstandingBalances(db, { customerName } = {}) {
+export async function getOutstandingBalances(db, { customerName, companyId = null } = {}) {
 	const normalizedName = requireString(customerName, 'El nombre del cliente', {
 		min: 2,
 		max: 160,
@@ -41,10 +41,11 @@ export async function getOutstandingBalances(db, { customerName } = {}) {
 			FROM payments GROUP BY appointment_id
 		 ) paid ON paid.appointment_id = a.id
 		 WHERE a.status IN ${ACTIVE_STATUSES}
+		   AND (?2 IS NULL OR a.company_id = ?2)
 		   AND COALESCE(paid.paid_cents, 0) < s.price_cents
 		   AND (?1 IS NULL OR COALESCE(c.full_name, a.patient_name) LIKE '%' || ?1 || '%' COLLATE NOCASE)
 		 ORDER BY customer_name COLLATE NOCASE, a.start_at DESC, a.id DESC`,
-	).bind(normalizedName ?? null).all();
+	).bind(normalizedName ?? null, companyId).all();
 
 	const people = new Map();
 	for (const row of result.results) {
@@ -82,16 +83,17 @@ export async function getOutstandingBalances(db, { customerName } = {}) {
 	};
 }
 
-export async function getExpenseSummary(db, { dateFrom, dateTo, category, search } = {}) {
+export async function getExpenseSummary(db, { dateFrom, dateTo, category, search, companyId = null } = {}) {
 	const from = optionalDate(dateFrom, 'La fecha inicial');
 	const to = optionalDate(dateTo, 'La fecha final');
 	if (from && to && from > to) throw new ValidationError('El período de gastos no es válido.');
 	const normalizedCategory = requireString(category, 'La categoría', { max: 80, optional: true });
 	const normalizedSearch = requireString(search, 'La búsqueda', { max: 120, optional: true });
-	const bindings = [from, to, normalizedCategory, normalizedSearch];
+	const bindings = [from, to, normalizedCategory, normalizedSearch, companyId];
 	const filters = `
 		(?1 IS NULL OR expense_date >= ?1)
 		AND (?2 IS NULL OR expense_date <= ?2)
+		AND (?5 IS NULL OR company_id = ?5)
 		AND (?3 IS NULL OR category LIKE '%' || ?3 || '%' COLLATE NOCASE)
 		AND (?4 IS NULL OR (
 			category LIKE '%' || ?4 || '%' COLLATE NOCASE
@@ -137,21 +139,23 @@ export async function getExpenseSummary(db, { dateFrom, dateTo, category, search
 	};
 }
 
-export async function getFinancialSummary(db, { dateFrom, dateTo } = {}) {
+export async function getFinancialSummary(db, { dateFrom, dateTo, companyId = null } = {}) {
 	const from = optionalDate(dateFrom, 'La fecha inicial');
 	const to = optionalDate(dateTo, 'La fecha final');
 	if (from && to && from > to) throw new ValidationError('El período financiero no es válido.');
-	const bindings = [from, to];
+	const bindings = [from, to, companyId];
 	const [income, expenses, appointments] = await Promise.all([
 		db.prepare(
 			`SELECT COUNT(*) AS payment_count, COALESCE(SUM(amount_cents), 0) AS income_cents
 			 FROM payments
-			 WHERE (?1 IS NULL OR payment_date >= ?1) AND (?2 IS NULL OR payment_date <= ?2)`,
+			 WHERE (?1 IS NULL OR payment_date >= ?1) AND (?2 IS NULL OR payment_date <= ?2)
+			   AND (?3 IS NULL OR company_id = ?3)`,
 		).bind(...bindings).first(),
 		db.prepare(
 			`SELECT COUNT(*) AS expense_count, COALESCE(SUM(amount_cents), 0) AS expenses_cents
 			 FROM expenses
-			 WHERE (?1 IS NULL OR expense_date >= ?1) AND (?2 IS NULL OR expense_date <= ?2)`,
+			 WHERE (?1 IS NULL OR expense_date >= ?1) AND (?2 IS NULL OR expense_date <= ?2)
+			   AND (?3 IS NULL OR company_id = ?3)`,
 		).bind(...bindings).first(),
 		db.prepare(
 			`WITH appointment_income AS (
@@ -160,6 +164,7 @@ export async function getFinancialSummary(db, { dateFrom, dateTo } = {}) {
 				LEFT JOIN services s ON s.id = a.service_id
 				LEFT JOIN payments p ON p.appointment_id = a.id
 				WHERE a.status IN ${ACTIVE_STATUSES}
+				  AND (?3 IS NULL OR a.company_id = ?3)
 				  AND (?1 IS NULL OR substr(a.start_at, 1, 10) >= ?1)
 				  AND (?2 IS NULL OR substr(a.start_at, 1, 10) <= ?2)
 				GROUP BY a.id

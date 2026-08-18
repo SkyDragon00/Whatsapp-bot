@@ -10,25 +10,25 @@ export async function listServices(db, { includeDisabled = false, limit = 100, c
 	return result.results;
 }
 
-export async function getServiceById(db, id, { includeDisabled = false } = {}) {
+export async function getServiceById(db, id, { includeDisabled = false, companyId = null } = {}) {
 	const serviceId = requirePositiveInteger(id, 'El servicio');
 	const query = includeDisabled
-		? 'SELECT * FROM services WHERE id = ?1 LIMIT 1'
-		: 'SELECT * FROM services WHERE id = ?1 AND enabled = 1 LIMIT 1';
-	return db.prepare(query).bind(serviceId).first();
+		? 'SELECT * FROM services WHERE id = ?1 AND (?2 IS NULL OR company_id = ?2) LIMIT 1'
+		: 'SELECT * FROM services WHERE id = ?1 AND enabled = 1 AND (?2 IS NULL OR company_id = ?2) LIMIT 1';
+	return db.prepare(query).bind(serviceId, companyId).first();
 }
 
-export async function getServiceByName(db, name, { includeDisabled = false } = {}) {
+export async function getServiceByName(db, name, { includeDisabled = false, companyId = null } = {}) {
 	const serviceName = requireString(name, 'El nombre del servicio', { min: 2, max: 100 });
 	const query = includeDisabled
-		? 'SELECT * FROM services WHERE name = ?1 COLLATE NOCASE LIMIT 1'
-		: 'SELECT * FROM services WHERE name = ?1 COLLATE NOCASE AND enabled = 1 LIMIT 1';
-	return db.prepare(query).bind(serviceName).first();
+		? 'SELECT * FROM services WHERE name = ?1 COLLATE NOCASE AND (?2 IS NULL OR company_id = ?2) LIMIT 1'
+		: 'SELECT * FROM services WHERE name = ?1 COLLATE NOCASE AND enabled = 1 AND (?2 IS NULL OR company_id = ?2) LIMIT 1';
+	return db.prepare(query).bind(serviceName, companyId).first();
 }
 
-export async function resolveService(db, { serviceId, serviceName, includeDisabled = false }) {
-	if (serviceId !== undefined && serviceId !== null) return getServiceById(db, serviceId, { includeDisabled });
-	if (serviceName !== undefined && serviceName !== null) return getServiceByName(db, serviceName, { includeDisabled });
+export async function resolveService(db, { serviceId, serviceName, includeDisabled = false }, { companyId = null } = {}) {
+	if (serviceId !== undefined && serviceId !== null) return getServiceById(db, serviceId, { includeDisabled, companyId });
+	if (serviceName !== undefined && serviceName !== null) return getServiceByName(db, serviceName, { includeDisabled, companyId });
 	throw new ValidationError('Debe indicarse el identificador o el nombre del servicio.');
 }
 

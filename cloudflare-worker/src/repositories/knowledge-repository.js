@@ -93,10 +93,11 @@ export async function listKnowledgeDocuments(db, { companyId = null } = {}) {
 	return result.results;
 }
 
-export async function getKnowledgeContext(db) {
-	const result = await withKnowledgeSchema(db, () => db
-		.prepare('SELECT id, name, content FROM ai_knowledge_documents ORDER BY created_at, id')
-		.all());
+export async function getKnowledgeContext(db, { companyId = null } = {}) {
+	const result = await withKnowledgeSchema(db, () => companyId === null
+		? db.prepare('SELECT id, name, content FROM ai_knowledge_documents ORDER BY created_at, id').all()
+		: db.prepare(`SELECT id, name, content FROM ai_knowledge_documents
+			WHERE company_id = ?1 ORDER BY created_at, id`).bind(companyId).all());
 	return result.results;
 }
 

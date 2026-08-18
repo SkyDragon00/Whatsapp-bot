@@ -1055,8 +1055,8 @@
   .optional-fields{display:grid;gap:12px;padding:14px;border:1px solid #e4e8f0;border-radius:14px;background:#fafbff}.optional-fields summary{cursor:pointer;font-weight:600;color:#315da8}.optional-fields[open] summary{margin-bottom:12px}
   .onboarding-style{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.onboarding-style label{padding:11px 8px;border:1px solid #dfe3eb;border-radius:11px;text-align:center;cursor:pointer;font-size:13px}.onboarding-style label:has(input:checked){border-color:#1a73e8;background:#f3f7ff;color:#174ea6}.onboarding-style input{display:block;margin:0 auto 6px}
   .auth-error{min-height:20px;color:var(--danger);font-size:13px}body.logged-out>header,body.logged-out>.app-shell{display:none}body:not(.logged-out)>.auth-page{display:none}
-  .company-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}.company-card{padding:20px;border:1px solid var(--border);border-radius:14px;background:#fff}
-  .company-card h3{margin:0 0 8px;font:600 18px 'Google Sans',sans-serif}.company-meta{color:var(--text-secondary);font-size:13px;line-height:1.7}
+  .company-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}.company-card{display:flex;flex-direction:column;padding:20px;border:1px solid var(--border);border-radius:14px;background:#fff}
+  .company-card h3{margin:0 0 8px;font:600 18px 'Google Sans',sans-serif}.company-meta{color:var(--text-secondary);font-size:13px;line-height:1.7}.company-owner{margin:10px 0 16px;padding:10px 12px;border-radius:10px;background:#f6f8fc;color:var(--text-secondary);font-size:13px;line-height:1.7}.company-owner strong{color:var(--text-primary)}.company-delete{align-self:flex-end;margin-top:auto;border:1px solid #f0c7c3;border-radius:8px;padding:7px 12px;background:#fff;color:var(--red);font:600 13px inherit;cursor:pointer}.company-delete:hover{background:#fce8e6}.company-delete:disabled{opacity:.55;cursor:wait}
   @media(max-width:720px){.auth-shell{grid-template-columns:1fr}.auth-intro{padding:32px}.auth-intro h1{font-size:29px}.auth-panel{padding:30px}}
 </style>
 </head>
@@ -1791,8 +1791,41 @@
       metadata.className = 'company-meta';
       const registeredAt = new Date(`${company.created_at}Z`).toLocaleDateString('es-EC');
       metadata.textContent = `Estado: ${company.status === 'active' ? 'Activa' : 'Inactiva'} · Administradores: ${company.admin_count} · Registro: ${registeredAt}`;
-      card.append(title, metadata);
+      const owner = document.createElement('div');
+      owner.className = 'company-owner';
+      const ownerName = document.createElement('div');
+      const ownerLabel = document.createElement('strong');
+      ownerLabel.textContent = 'Usuario: ';
+      ownerName.append(ownerLabel, company.owner_username || 'Sin usuario asignado');
+      const ownerPhone = document.createElement('div');
+      const phoneLabel = document.createElement('strong');
+      phoneLabel.textContent = 'Teléfono: ';
+      ownerPhone.append(phoneLabel, company.owner_phone || 'Sin teléfono registrado');
+      owner.append(ownerName, ownerPhone);
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'company-delete';
+      deleteButton.textContent = 'Eliminar empresa';
+      deleteButton.setAttribute('aria-label', `Eliminar empresa ${company.name}`);
+      deleteButton.addEventListener('click', () => removeCompany(company, deleteButton));
+      card.append(title, metadata, owner, deleteButton);
       companyGrid.append(card);
+    }
+  }
+
+  async function removeCompany(company, button) {
+    const warning = `¿Eliminar la empresa "${company.name}"? Se borrarán también su usuario y todos sus datos. Esta acción no se puede deshacer.`;
+    if (!window.confirm(warning)) return;
+    button.disabled = true;
+    try {
+      const response = await apiFetch(`/api/moderator/companies/${company.id}`, { method: 'DELETE' });
+      await parseApiResponse(response, 'No se pudo eliminar la empresa.');
+      await loadCompanies();
+      refreshStatus.textContent = `Se eliminó la empresa ${company.name}.`;
+    } catch (error) {
+      button.disabled = false;
+      refreshStatus.textContent = error.message;
+      window.alert(error.message);
     }
   }
 

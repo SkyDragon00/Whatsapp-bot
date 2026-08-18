@@ -1,6 +1,6 @@
 import { getZonedParts } from '../domain/datetime.js';
 
-export function buildSystemPrompt({ settings, knowledgeDocuments = [], now = new Date() }) {
+export function buildSystemPrompt({ settings, knowledgeDocuments = [], now = new Date(), onboardingIdentity = {} }) {
 	const localNow = getZonedParts(now, settings.businessTimezone);
 	const ownerMode = settings.aiMode === 'owner';
 	const onboardingEnabled = settings.onboardingEnabled === true;
@@ -13,6 +13,9 @@ export function buildSystemPrompt({ settings, knowledgeDocuments = [], now = new
 	const knowledge = knowledgeDocuments.length > 0
 		? knowledgeDocuments.map((document) => `--- DOCUMENTO: ${document.name} ---\n${document.content}`).join('\n\n')
 		: '(No hay documentos de referencia cargados.)';
+	const onboardingIdentityBlock = onboardingEnabled && (onboardingIdentity.businessName || onboardingIdentity.username || onboardingIdentity.communicationStyle)
+		? `\nDATOS OBLIGATORIOS YA RECOPILADOS POR EL SISTEMA:\n${onboardingIdentity.businessName ? `- Nombre del negocio: ${JSON.stringify(onboardingIdentity.businessName)}\n` : ''}${onboardingIdentity.username ? `- Nombre de usuario: ${JSON.stringify(onboardingIdentity.username)}\n` : ''}${onboardingIdentity.communicationStyle ? `- Estilo de comunicación: ${JSON.stringify(onboardingIdentity.communicationStyle)}\n` : ''}- Nunca vuelvas a preguntar por un campo que aparece en esta lista. Continúa únicamente con los campos que falten.\n- El nombre del negocio y el nombre de usuario son distintos; nunca los intercambies.\n- Conserva cada valor exactamente en su campo. Solo cámbialo si el usuario lo corrige explícitamente.\n`
+		: '';
 	return `
 Eres el asistente virtual de un negocio que trabaja exclusivamente mediante citas.
 Habla en español natural y breve.
@@ -21,14 +24,18 @@ ${styleInstructions[communicationStyle]}
 ${onboardingEnabled ? `MODO ONBOARDING ACTIVO:
 - Preséntate brevemente como un asistente de inteligencia artificial.
 - Guía al usuario con una pregunta a la vez.
-- Son obligatorios: nombre del negocio, usuario, contraseña y estilo de comunicación (formal, semiformal o amigo).
+- Antes de preguntar, revisa los DATOS OBLIGATORIOS YA RECOPILADOS. No repitas ninguna pregunta cuyo dato ya esté presente.
+- Son obligatorios: nombre del negocio, usuario y estilo de comunicación (formal, semiformal o amigo).
+- No preguntes ni solicites una contraseña. El sistema asignará automáticamente la clave temporal 12345678.
 - Son opcionales: dirección, instrucciones para llegar, política de cancelación, notas generales y métodos de pago.
 - Indica que puede adjuntar un PDF con información relevante y que no es obligatorio.
-- Cuando tengas todos los datos, presenta un resumen sin mostrar la contraseña y pregunta expresamente si todo está correcto.
+- Cuando tengas todos los datos, presenta un resumen y pregunta expresamente si todo está correcto.
 - No llames register_business_from_onboarding hasta recibir una confirmación clara posterior al resumen (por ejemplo: "sí", "correcto" o "confirmo").
 - Después de la confirmación, llama una sola vez a register_business_from_onboarding con todos los datos recopilados.
-- Solo afirma que la cuenta fue creada si la herramienta devuelve ok=true. Entonces indica que podrá iniciar sesión y que deberá cambiar su contraseña por seguridad.
+- Si el usuario ya existe, informa las tres alternativas disponibles devueltas por la herramienta y pide que elija una antes de volver a registrar.
+- Solo afirma que la cuenta fue creada si la herramienta devuelve ok=true. Entonces indica que podrá iniciar sesión con la clave temporal 12345678 y que deberá cambiarla por seguridad.
 - No mezcles este flujo con la gestión normal de citas.` : 'MODO ONBOARDING INACTIVO: atiende normalmente según el rol configurado.'}
+${onboardingIdentityBlock}
 
 Modo activo: ${ownerMode ? 'DUEÑO' : 'CLIENTE'}.
 ${

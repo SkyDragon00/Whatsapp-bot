@@ -8,7 +8,7 @@ import { AiProtocolError } from '../domain/errors.js';
 import { fetchWithTimeout, readJsonWithLimit } from '../utils/http.js';
 import { logEvent } from '../utils/logging.js';
 import { TOOL_DECLARATIONS } from './tool-definitions.js';
-import { executeToolSafely, isAllowedToolName } from './tools.js';
+import { executeToolSafely, isAllowedToolName, isExplicitConfirmation } from './tools.js';
 
 function historyToContents(history, userMessage) {
 	const contents = history.map((message) => ({
@@ -114,6 +114,20 @@ function extractText(content) {
 		.trim();
 }
 
+function hasPendingAppointmentConfirmation(history, userMessage) {
+	if (!isExplicitConfirmation(userMessage)) return false;
+	const lastModelMessage = [...history].reverse().find((message) => message.role === 'model')?.text ?? '';
+	const normalized = lastModelMessage.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+	return /(confirm|todo correcto|proceder).{0,180}(cita|agend)|(cita|agend).{0,180}(confirm|todo correcto|proceder)/.test(normalized);
+}
+
+function appointmentSuccessMessage(data) {
+	const appointment = data?.appointment ?? {};
+	const customer = appointment.customer_name ? ` para ${appointment.customer_name}` : '';
+	const service = appointment.service_name ? ` (${appointment.service_name})` : '';
+	return `Listo. La cita${customer}${service} quedó registrada correctamente en la agenda.`;
+}
+
 export async function runGeminiAgent({
 	apiKey,
 	systemPrompt,
@@ -127,6 +141,8 @@ export async function runGeminiAgent({
 }) {
 	const contents = historyToContents(history, userMessage);
 	let totalToolCalls = 0;
+	const pendingAppointmentConfirmation = hasPendingAppointmentConfirmation(history, userMessage);
+	let appointmentRetryRequested = false;
 
 	for (let iteration = 0; iteration < GEMINI_MAX_TOOL_ITERATIONS; iteration += 1) {
 		const result = await requestGemini({ apiKey, systemPrompt, contents, fetchImpl, iteration, diagnostics, toolDeclarations });
@@ -144,6 +160,18 @@ export async function runGeminiAgent({
 		if (functionCalls.length === 0) {
 			const text = extractText(modelContent);
 			if (!text) throw new AiProtocolError('Gemini devolvió una respuesta vacía.');
+			if (pendingAppointmentConfirmation && !appointmentRetryRequested) {
+				appointmentRetryRequested = true;
+				contents.push(modelContent);
+				contents.push({
+					role: 'user',
+					parts: [{ text: 'La cita todavía no está registrada. Debes llamar ahora a create_appointment con los datos ya confirmados. No afirmes que fue creada sin ejecutar la herramienta.' }],
+				});
+				continue;
+			}
+			if (pendingAppointmentConfirmation) {
+				return 'No pude registrar la cita en la agenda. No quedó confirmada; por favor inténtalo nuevamente.';
+			}
 			return text;
 		}
 		totalToolCalls += functionCalls.length;
@@ -158,11 +186,16 @@ export async function runGeminiAgent({
 				throw new AiProtocolError('Gemini intentó usar una herramienta desconocida.');
 			}
 			const response = await executeToolResult(functionCall.name, functionCall.args ?? {}, toolContext);
+			if (functionCall.name === 'create_appointment') {
+				if (response?.ok && response.data?.appointment?.id) return appointmentSuccessMessage(response.data);
+				const message = response?.error?.message || 'No se pudo completar el registro.';
+				return `No pude agendar la cita: ${message} La cita no quedó confirmada.`;
+			}
 			if (functionCall.name === 'register_business_from_onboarding') {
 				if (response?.ok) {
 					const businessName = response.data?.businessName || 'tu negocio';
 					const username = response.data?.username || 'tu usuario';
-					return `Listo. El negocio ${businessName} y el usuario ${username} fueron creados correctamente. Ya puedes iniciar sesión con la contraseña temporal. Por seguridad, la página te pedirá cambiarla antes de entrar al panel.`;
+					return `Listo. El negocio ${businessName} y el usuario ${username} fueron creados correctamente. Ya puedes iniciar sesión con la clave temporal 12345678. Por seguridad, la página te pedirá cambiarla antes de entrar al panel.`;
 				}
 				const message = response?.error?.message || 'No se pudo completar el registro.';
 				return `No pude crear la cuenta: ${message} Revisa los datos e inténtalo nuevamente; todavía no intentes iniciar sesión.`;

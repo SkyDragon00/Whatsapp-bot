@@ -117,4 +117,47 @@ describe.sequential('usuarios y moderación', () => {
 		const forbidden = await SELF.fetch(`${ORIGIN}/api/moderator/companies`);
 		expect(forbidden.status).toBe(403);
 	});
+
+	it('muestra el propietario y permite al super admin eliminar la empresa y sus datos', async () => {
+		const suffix = crypto.randomUUID().slice(0, 8);
+		const businessName = `Empresa eliminable ${suffix}`;
+		const username = `delete-${suffix}`;
+		const registration = await SELF.fetch(`${ORIGIN}/api/auth/register`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ businessName, username, password: 'password-seguro', communicationStyle: 'formal' }),
+		});
+		const registered = await registration.json();
+		const companyId = registered.user.companyId;
+		const phone = `+59398${suffix.replace(/[^0-9]/g, '').padEnd(7, '0').slice(0, 7)}`;
+		await env.DB.prepare('UPDATE users SET phone_e164 = ?1 WHERE company_id = ?2').bind(phone, companyId).run();
+
+		const adminLogin = await SELF.fetch(`${ORIGIN}/api/auth/login`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ username: 'admin', password: 'admin' }),
+		});
+		const cookie = sessionCookie(adminLogin);
+		const companiesResponse = await SELF.fetch(`${ORIGIN}/api/moderator/companies`, { headers: { Cookie: cookie } });
+		const companies = (await companiesResponse.json()).companies;
+		expect(companies).toEqual(expect.arrayContaining([
+			expect.objectContaining({ id: companyId, name: businessName, owner_username: username, owner_phone: phone }),
+		]));
+
+		const forbidden = await SELF.fetch(`${ORIGIN}/api/moderator/companies/${companyId}`, { method: 'DELETE' });
+		expect(forbidden.status).toBe(403);
+
+		const deleted = await SELF.fetch(`${ORIGIN}/api/moderator/companies/${companyId}`, {
+			method: 'DELETE', headers: { Cookie: cookie },
+		});
+		expect(deleted.status).toBe(200);
+		expect(await deleted.json()).toMatchObject({ ok: true, deletedCompany: { id: companyId, name: businessName } });
+		expect(await env.DB.prepare('SELECT id FROM companies WHERE id = ?1').bind(companyId).first()).toBeNull();
+		expect(await env.DB.prepare('SELECT id FROM users WHERE company_id = ?1').bind(companyId).first()).toBeNull();
+		expect((await env.DB.prepare("SELECT key FROM settings WHERE key LIKE ('company:' || ?1 || ':%')").bind(companyId).all()).results).toHaveLength(0);
+
+		const missing = await SELF.fetch(`${ORIGIN}/api/moderator/companies/${companyId}`, {
+			method: 'DELETE', headers: { Cookie: cookie },
+		});
+		expect(missing.status).toBe(404);
+	});
 });

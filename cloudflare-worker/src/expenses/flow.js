@@ -67,6 +67,11 @@ export async function handleExpenseConfirmation({
 		await sendMessage(chatId, 'Ese gasto pendiente ya expiró. Envíalo nuevamente.', env);
 		return true;
 	}
+	if (Object.hasOwn(pending, 'companyId') && pending.companyId !== companyId) {
+		await Promise.all([env.CONVERSATIONS.delete(pendingKey(pendingId)), env.CONVERSATIONS.delete(chatPendingKey(chatId))]);
+		await sendMessage(chatId, 'Ese gasto pendiente pertenece a otra cuenta y fue descartado.', env);
+		return true;
+	}
 	if (NO.has(reply)) {
 		await Promise.all([env.CONVERSATIONS.delete(pendingKey(pendingId)), env.CONVERSATIONS.delete(chatPendingKey(chatId))]);
 		await sendMessage(chatId, 'Gasto descartado. No se guardó nada.', env);
@@ -88,6 +93,7 @@ export async function handleExpenseConfirmation({
 
 export async function processExpenseMessage({
 	route, chatId, userId, settings, env, now = new Date(),
+	companyId = null,
 	sendMessage = sendTelegramMessage, downloadMedia = downloadTelegramFile,
 }) {
 	if (route.type === 'unsupported') {
@@ -112,7 +118,7 @@ export async function processExpenseMessage({
 			return;
 		}
 		const id = shortId();
-		const pending = { id, chatId, userId, localDate: context.localDate, extraction };
+		const pending = { id, chatId, userId, companyId, localDate: context.localDate, extraction };
 		await Promise.all([
 			env.CONVERSATIONS.put(pendingKey(id), JSON.stringify(pending), { expirationTtl: PENDING_TTL_SECONDS }),
 			env.CONVERSATIONS.put(chatPendingKey(chatId), id, { expirationTtl: PENDING_TTL_SECONDS }),

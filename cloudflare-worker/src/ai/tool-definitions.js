@@ -13,7 +13,6 @@ export const TOOL_DECLARATIONS = [
 			properties: {
 				business_name: { type: 'string' },
 				username: { type: 'string' },
-				password: { type: 'string' },
 				communication_style: { type: 'string', enum: ['formal', 'semiformal', 'friend'] },
 				address: { type: 'string' },
 				arrival_instructions: { type: 'string' },
@@ -21,7 +20,7 @@ export const TOOL_DECLARATIONS = [
 				general_notes: { type: 'string' },
 				payment_methods: { type: 'array', items: { type: 'string' } },
 			},
-			required: ['business_name', 'username', 'password', 'communication_style'],
+			required: ['business_name', 'username', 'communication_style'],
 			additionalProperties: false,
 		},
 	},

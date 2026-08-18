@@ -18,6 +18,11 @@ export async function getBusinessSettings(db, { companyId = null } = {}) {
 }
 
 export async function getBotBusinessSettings(db) {
+	const onboardingCompanyId = await getOnboardingCompanyId(db);
+	if (onboardingCompanyId !== null) {
+		return getBusinessSettings(db, { companyId: onboardingCompanyId });
+	}
+
 	const botCompanyId = await getBotCompanyId(db);
 	if (botCompanyId !== null) {
 		return getBusinessSettings(db, { companyId: botCompanyId });
@@ -45,6 +50,26 @@ export async function getBotBusinessSettings(db) {
 	return getBusinessSettings(db);
 }
 
+export async function getOnboardingCompanyId(db) {
+	const result = await db.prepare(
+		`SELECT settings.key, settings.value
+		 FROM settings
+		 JOIN companies ON settings.key = 'company:' || companies.id || ':schedule'
+		 WHERE companies.status = 'active'
+		 ORDER BY companies.id DESC`,
+	).all();
+	for (const row of result.results) {
+		try {
+			if (JSON.parse(row.value)?.onboardingEnabled !== true) continue;
+			const match = /^company:(\d+):schedule$/.exec(row.key);
+			if (match) return Number(match[1]);
+		} catch {
+			// Ignora configuraciones dañadas y continúa buscando un onboarding válido.
+		}
+	}
+	return null;
+}
+
 export async function getBotCompanyId(db) {
 	const serviceCompanies = await db.prepare(
 		`SELECT DISTINCT company_id FROM services
@@ -61,8 +86,8 @@ export async function getBotCompanyId(db) {
 	return match ? Number(match[1]) : null;
 }
 
-export async function updateBotCommunicationStyle(db, communicationStyle) {
-	const botCompanyId = await getBotCompanyId(db);
+export async function updateBotCommunicationStyle(db, communicationStyle, { companyId = undefined } = {}) {
+	const botCompanyId = companyId === undefined ? await getBotCompanyId(db) : companyId;
 	if (botCompanyId !== null) {
 		const settings = await getBusinessSettings(db, { companyId: botCompanyId });
 		return saveBusinessSettings(db, {

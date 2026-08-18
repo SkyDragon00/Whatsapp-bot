@@ -36,6 +36,12 @@ function assertNoArguments(args) {
 	assertAllowedKeys(args, []);
 }
 
+function requireOwnerAuthorization(context) {
+	if (context.ownerAuthorized === false) {
+		throw new ValidationError('Este número de teléfono no está autorizado como dueño de la empresa.');
+	}
+}
+
 export function isExplicitConfirmation(message) {
 	const normalized = String(message ?? '').trim().toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 	if (/\b(no|incorrecto|aun no|todavia no)\b/.test(normalized)) return false;
@@ -124,8 +130,8 @@ async function findSlots(args, context) {
 		resolveService(context.env.DB, {
 			serviceId: input.serviceId,
 			serviceName: input.serviceName,
-		}),
-		getBusinessSettings(context.env.DB),
+		}, { companyId: context.companyId }),
+		getBusinessSettings(context.env.DB, { companyId: context.companyId }),
 	]);
 	if (!service) throw new ValidationError('El servicio no existe o está deshabilitado.');
 
@@ -134,6 +140,7 @@ async function findSlots(args, context) {
 	const appointments = await listAppointmentsInRange(context.env.DB, {
 		startAt: rangeStart,
 		endAt: rangeEnd,
+		companyId: context.companyId,
 	});
 	const slots = findAvailableSlots({
 		dateFrom: input.dateFrom,
@@ -152,7 +159,7 @@ async function findSlots(args, context) {
 async function createAppointmentTool(rawArgs, context) {
 	const args = requireArguments(rawArgs);
 	assertAllowedKeys(args, ['customer_name', 'service_id', 'start_datetime', 'phone']);
-	const settings = await getBotBusinessSettings(context.env.DB);
+	const settings = await getBusinessSettings(context.env.DB, { companyId: context.companyId });
 	if (settings.aiMode === 'client' && !isExplicitConfirmation(context.userMessage)) {
 		throw new ValidationError('Antes de agendar, muestra todos los datos de la cita y espera una confirmación explícita del cliente.');
 	}
@@ -168,7 +175,7 @@ async function createAppointmentTool(rawArgs, context) {
 			phone: args.phone,
 			source_update_id: context.sourceUpdateId,
 		},
-		{ now: context.now },
+		{ now: context.now, companyId: context.companyId },
 	);
 	return { appointment: serializeAppointment(created) };
 }
@@ -180,14 +187,16 @@ async function cancelAppointmentTool(rawArgs, context) {
 		appointmentId: args.appointment_id,
 		telegramUserId: context.telegram.userId,
 		now: context.now,
+		companyId: context.companyId,
 	});
 	return { appointment: serializeAppointment(appointment) };
 }
 
 async function registerPaymentTool(rawArgs, context) {
+	requireOwnerAuthorization(context);
 	const args = requireArguments(rawArgs);
 	assertAllowedKeys(args, ['appointment_id', 'payment_date', 'amount', 'payment_method', 'bank', 'billing_type', 'cedula_ruc', 'address', 'phone', 'notes']);
-	const settings = await getBusinessSettings(context.env.DB);
+	const settings = await getBusinessSettings(context.env.DB, { companyId: context.companyId });
 	if (settings.aiMode !== 'owner') {
 		throw new ValidationError('Registrar pagos solo está disponible en modo dueño.');
 	}
@@ -197,7 +206,7 @@ async function registerPaymentTool(rawArgs, context) {
 		telegram_chat_id: context.telegram.chatId,
 		telegram_username: context.telegram.username,
 		source_update_id: context.sourceUpdateId,
-	}, { now: context.now });
+	}, { now: context.now, companyId: context.companyId });
 	if (isTransfer(payment.payment_method)) {
 		await context.env.CONVERSATIONS.put(
 			`pending-payment-receipt:${context.telegram.chatId}`,
@@ -236,21 +245,27 @@ export async function executeTool(name, rawArgs, context) {
 
 	switch (name) {
 		case 'register_business_from_onboarding': {
-			assertAllowedKeys(args, ['business_name', 'username', 'password', 'communication_style', 'address', 'arrival_instructions', 'cancellation_policy', 'general_notes', 'payment_methods']);
+			assertAllowedKeys(args, ['business_name', 'username', 'communication_style', 'address', 'arrival_instructions', 'cancellation_policy', 'general_notes', 'payment_methods']);
 			const settings = await getBotBusinessSettings(context.env.DB);
 			if (!settings.onboardingEnabled) throw new ValidationError('El modo onboarding está desactivado.');
 			if (!isExplicitConfirmation(context.userMessage)) {
 				throw new ValidationError('Antes de registrar, muestra el resumen y espera una confirmación explícita del usuario.');
 			}
-			return registerOnboardingBusiness(context.env.DB, args);
+			return registerOnboardingBusiness(context.env.DB, {
+				...args,
+				...(context.onboardingIdentity?.businessName ? { business_name: context.onboardingIdentity.businessName } : {}),
+				...(context.onboardingIdentity?.username ? { username: context.onboardingIdentity.username } : {}),
+				...(context.onboardingIdentity?.communicationStyle ? { communication_style: context.onboardingIdentity.communicationStyle } : {}),
+			}, { ownerPhone: context.whatsappPhone ?? null });
 		}
 		case 'get_business_settings': {
 			assertNoArguments(args);
-			return getBusinessSettings(context.env.DB);
+			return getBusinessSettings(context.env.DB, { companyId: context.companyId });
 		}
 		case 'set_communication_style': {
+			requireOwnerAuthorization(context);
 			assertAllowedKeys(args, ['style']);
-			const settings = await getBotBusinessSettings(context.env.DB);
+			const settings = await getBusinessSettings(context.env.DB, { companyId: context.companyId });
 			if (settings.aiMode !== 'owner') {
 				throw new ValidationError('Cambiar la personalidad solo está disponible en modo dueño.');
 			}
@@ -258,12 +273,12 @@ export async function executeTool(name, rawArgs, context) {
 			if (!['formal', 'semiformal', 'friend'].includes(style)) {
 				throw new ValidationError('El estilo debe ser formal, semiformal o amigo.');
 			}
-			const updated = await updateBotCommunicationStyle(context.env.DB, style);
+			const updated = await updateBotCommunicationStyle(context.env.DB, style, { companyId: context.companyId });
 			return { communicationStyle: updated.businessProfile.communicationStyle };
 		}
 		case 'list_services': {
 			assertNoArguments(args);
-			const services = await listServices(context.env.DB, { limit: 50 });
+			const services = await listServices(context.env.DB, { limit: 50, companyId: context.companyId });
 			return { services: services.map(serializeService) };
 		}
 		case 'find_available_slots':
@@ -272,27 +287,30 @@ export async function executeTool(name, rawArgs, context) {
 			return createAppointmentTool(args, context);
 		case 'get_customer_appointments': {
 			assertNoArguments(args);
-			const appointments = await getCustomerAppointments(context.env.DB, context.telegram.userId, { limit: 20 });
+			const appointments = await getCustomerAppointments(context.env.DB, context.telegram.userId, { limit: 20, companyId: context.companyId });
 			return { appointments: appointments.map(serializeAppointment) };
 		}
 		case 'find_customer_appointments': {
+			requireOwnerAuthorization(context);
 			assertAllowedKeys(args, ['customer_name']);
-			const settings = await getBusinessSettings(context.env.DB);
+			const settings = await getBusinessSettings(context.env.DB, { companyId: context.companyId });
 			if (settings.aiMode !== 'owner') throw new ValidationError('Buscar citas de clientes solo está disponible en modo dueño.');
-			const appointments = await findAppointmentsByCustomerName(context.env.DB, args.customer_name);
+			const appointments = await findAppointmentsByCustomerName(context.env.DB, args.customer_name, { companyId: context.companyId });
 			return { appointments: appointments.map(serializeAppointment) };
 		}
 		case 'get_outstanding_balances': {
+			requireOwnerAuthorization(context);
 			assertAllowedKeys(args, ['customer_name']);
-			const settings = await getBusinessSettings(context.env.DB);
+			const settings = await getBusinessSettings(context.env.DB, { companyId: context.companyId });
 			if (settings.aiMode !== 'owner') {
 				throw new ValidationError('Consultar deudas solo está disponible en modo dueño.');
 			}
-			return getOutstandingBalances(context.env.DB, { customerName: args.customer_name });
+			return getOutstandingBalances(context.env.DB, { customerName: args.customer_name, companyId: context.companyId });
 		}
 		case 'get_expense_summary': {
+			requireOwnerAuthorization(context);
 			assertAllowedKeys(args, ['date_from', 'date_to', 'category', 'search']);
-			const settings = await getBusinessSettings(context.env.DB);
+			const settings = await getBusinessSettings(context.env.DB, { companyId: context.companyId });
 			if (settings.aiMode !== 'owner') {
 				throw new ValidationError('Consultar gastos solo está disponible en modo dueño.');
 			}
@@ -301,17 +319,20 @@ export async function executeTool(name, rawArgs, context) {
 				dateTo: args.date_to,
 				category: args.category,
 				search: args.search,
+				companyId: context.companyId,
 			});
 		}
 		case 'get_financial_summary': {
+			requireOwnerAuthorization(context);
 			assertAllowedKeys(args, ['date_from', 'date_to']);
-			const settings = await getBusinessSettings(context.env.DB);
+			const settings = await getBusinessSettings(context.env.DB, { companyId: context.companyId });
 			if (settings.aiMode !== 'owner') {
 				throw new ValidationError('Consultar el resumen financiero solo está disponible en modo dueño.');
 			}
 			return getFinancialSummary(context.env.DB, {
 				dateFrom: args.date_from,
 				dateTo: args.date_to,
+				companyId: context.companyId,
 			});
 		}
 		case 'cancel_appointment':

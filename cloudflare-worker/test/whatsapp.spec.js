@@ -5,6 +5,7 @@ import {
 } from 'cloudflare:test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	authorizeWhatsAppUser,
 	handleWhatsAppVerification,
 	handleWhatsAppWebhook,
 } from '../src/routes/whatsapp.js';
@@ -13,6 +14,7 @@ import {
 	sendWhatsAppMessage,
 	sendWhatsAppTypingIndicator,
 } from '../src/integrations/whatsapp.js';
+import { findUserByPhone, normalizePhoneE164 } from '../src/repositories/user-identity-repository.js';
 
 const message = {
 	from: '593999111222',
@@ -62,6 +64,40 @@ describe('webhook de WhatsApp', () => {
 
 		expect(handleWhatsAppVerification(valid, localEnv).status).toBe(200);
 		expect(handleWhatsAppVerification(invalid, localEnv).status).toBe(403);
+	});
+
+	it('resuelve el numero de WhatsApp al usuario y empresa vinculados', async () => {
+		const first = vi.fn().mockResolvedValue({
+			username: 'Mario', company_id: 7, company_name: 'Funny Hair', phone_e164: '+593996133200',
+		});
+		const bind = vi.fn().mockReturnValue({ first });
+		const db = { prepare: vi.fn().mockReturnValue({ bind }) };
+
+		expect(normalizePhoneE164('(+593) 996-133-200')).toBe('+593996133200');
+		await expect(findUserByPhone(db, '593996133200')).resolves.toMatchObject({
+			username: 'Mario', company_id: 7, company_name: 'Funny Hair',
+		});
+		expect(bind).toHaveBeenCalledWith('+593996133200');
+	});
+
+	it('degrada a cliente a los numeros no reconocidos', () => {
+		const settings = { aiMode: 'owner', onboardingEnabled: false };
+		expect(authorizeWhatsAppUser(settings, null)).toEqual({
+			ownerAuthorized: false,
+			settings: { aiMode: 'client', onboardingEnabled: false },
+		});
+		expect(authorizeWhatsAppUser(settings, { role: 'admin', company_id: 7 })).toEqual({
+			ownerAuthorized: true,
+			settings,
+		});
+	});
+
+	it('permite el onboarding a un numero nuevo cuando esta activado', () => {
+		const settings = { aiMode: 'owner', onboardingEnabled: true };
+		expect(authorizeWhatsAppUser(settings, null)).toEqual({
+			ownerAuthorized: false,
+			settings,
+		});
 	});
 
 	it('responde inmediatamente y procesa el mensaje en segundo plano', async () => {

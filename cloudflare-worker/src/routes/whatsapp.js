@@ -8,6 +8,7 @@ import { transcribeAppointmentAudio } from '../ai/transcription.js';
 import { buildSystemPrompt } from '../ai/system-prompt.js';
 import { toolDeclarationsForMode } from '../ai/tool-definitions.js';
 import { clearConversation, loadConversation, saveConversation } from '../conversation/store.js';
+import { deriveOnboardingIdentity } from '../onboarding/conversation-state.js';
 import {
 	downloadWhatsAppMedia,
 	sendWhatsAppMessage,
@@ -19,7 +20,8 @@ import { routeWhatsAppMessage } from '../expenses/whatsapp-router.js';
 import { attachPaymentReceipt } from '../repositories/payments-repository.js';
 import { storeReceipt } from '../storage/receipts.js';
 import { getKnowledgeContext } from '../repositories/knowledge-repository.js';
-import { getBotBusinessSettings, getBotCompanyId } from '../repositories/settings-repository.js';
+import { getBotCompanyId, getBusinessSettings, getOnboardingCompanyId } from '../repositories/settings-repository.js';
+import { findUserByPhone } from '../repositories/user-identity-repository.js';
 import { logError } from '../utils/logging.js';
 import { jsonResponse } from '../utils/responses.js';
 
@@ -35,6 +37,16 @@ const MAX_WEBHOOK_BYTES = 512_000;
 
 function conversationId(sender) {
 	return `whatsapp:${sender}`;
+}
+
+export function authorizeWhatsAppUser(settings, linkedUser) {
+	const ownerAuthorized = linkedUser?.role === 'admin' && Number.isInteger(linkedUser.company_id);
+	return {
+		ownerAuthorized,
+		settings: ownerAuthorized || settings.onboardingEnabled
+			? settings
+			: { ...settings, aiMode: 'client' },
+	};
 }
 
 function idempotencyKey(messageId) {
@@ -110,6 +122,13 @@ export function handleWhatsAppVerification(request, env, url = new URL(request.u
 
 export async function processWhatsAppMessage({ message, env, now = new Date() }) {
 	const recipient = String(message.from);
+	const linkedUser = await findUserByPhone(env.DB, recipient);
+	const companyId = linkedUser?.company_id
+		?? await getOnboardingCompanyId(env.DB)
+		?? await getBotCompanyId(env.DB);
+	const businessSettings = await getBusinessSettings(env.DB, { companyId });
+	const authorization = authorizeWhatsAppUser(businessSettings, linkedUser);
+	const { ownerAuthorized, settings } = authorization;
 	const channelId = conversationId(recipient);
 	const route = routeWhatsAppMessage(message);
 	let text = route.type === 'text' ? route.text : '';
@@ -126,10 +145,11 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 	if (route.type === 'image') {
 		const pendingKey = `pending-payment-receipt:${recipient}`;
 		const pending = await env.CONVERSATIONS.get(pendingKey, 'json');
-		if (pending?.paymentId) {
+		if (pending?.paymentId && !ownerAuthorized) await env.CONVERSATIONS.delete(pendingKey);
+		if (pending?.paymentId && ownerAuthorized) {
 			const pendingPayment = await env.DB.prepare(
-				'SELECT id, payment_method FROM payments WHERE id = ?1 LIMIT 1',
-			).bind(pending.paymentId).first();
+				'SELECT id, payment_method FROM payments WHERE id = ?1 AND company_id IS ?2 LIMIT 1',
+			).bind(pending.paymentId, companyId).first();
 			if (pendingPayment?.payment_method?.trim().toLocaleLowerCase('es') === 'transferencia') {
 				const media = await downloadWhatsAppMedia(route.fileId, env);
 				const receipt = await storeReceipt(env.RECEIPTS, {
@@ -157,7 +177,6 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 			await sendWhatsAppMessage(recipient, CANCEL_MESSAGE, env);
 			return;
 		}
-		const settings = await getBotBusinessSettings(env.DB);
 		await sendWhatsAppMessage(
 			recipient,
 			settings.onboardingEnabled
@@ -168,15 +187,13 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 		return;
 	}
 
-	const settings = await getBotBusinessSettings(env.DB);
-	const companyId = await getBotCompanyId(env.DB);
 	const sendMessage = (chatId, body, targetEnv) => sendWhatsAppMessage(chatId, body, targetEnv);
-	if (route.type === 'text' && await handleExpenseConfirmation({
+	if (ownerAuthorized && route.type === 'text' && await handleExpenseConfirmation({
 		text, chatId: recipient, userId: recipient, env, now, companyId, sendMessage,
 	})) return;
-	if (settings.aiMode === 'owner' && (route.type !== 'text' || isExplicitExpenseText(text))) {
+	if (ownerAuthorized && settings.aiMode === 'owner' && (route.type !== 'text' || isExplicitExpenseText(text))) {
 		await processExpenseMessage({
-			route, chatId: recipient, userId: recipient,
+			route, chatId: recipient, userId: recipient, companyId,
 			settings, env, now, sendMessage, downloadMedia: downloadWhatsAppMedia,
 		});
 		return;
@@ -195,15 +212,19 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 	}
 	const conversationMode = settings.onboardingEnabled ? 'onboarding' : 'normal';
 	const history = await loadConversation(env.CONVERSATIONS, channelId, { mode: conversationMode });
+	const onboardingIdentity = settings.onboardingEnabled ? deriveOnboardingIdentity(history, text) : {};
 	let knowledgeDocuments = [];
 	try {
-		knowledgeDocuments = await getKnowledgeContext(env.DB);
+		knowledgeDocuments = await getKnowledgeContext(env.DB, { companyId });
 	} catch (error) {
 		logError('knowledge_context_unavailable', error, { identity: message.id, channel: 'whatsapp' });
 	}
 	const responseText = await runGeminiAgent({
 		apiKey: env.GEMINI_API_KEY,
-		systemPrompt: buildSystemPrompt({ settings, knowledgeDocuments, now }),
+		systemPrompt: buildSystemPrompt({
+			settings, knowledgeDocuments, now,
+			onboardingIdentity,
+		}),
 		toolDeclarations: toolDeclarationsForMode(settings.aiMode, settings.onboardingEnabled),
 		history,
 		userMessage: text,
@@ -211,6 +232,11 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 		toolContext: {
 			env,
 			now,
+			companyId,
+			linkedUser,
+			ownerAuthorized,
+			onboardingIdentity,
+			whatsappPhone: recipient,
 			userMessage: text,
 			// Las tablas existentes conservan estos nombres por compatibilidad con Telegram.
 			telegram: { chatId: recipient, userId: recipient, username: message.profileName },

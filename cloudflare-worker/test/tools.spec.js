@@ -2,7 +2,12 @@ import { applyD1Migrations, env, SELF } from 'cloudflare:test';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { executeToolSafely } from '../src/ai/tools.js';
 import { toolDeclarationsForMode } from '../src/ai/tool-definitions.js';
-import { getBotBusinessSettings, getBusinessSettings, saveBusinessSettings } from '../src/repositories/settings-repository.js';
+import {
+	getBotBusinessSettings,
+	getBusinessSettings,
+	getOnboardingCompanyId,
+	saveBusinessSettings,
+} from '../src/repositories/settings-repository.js';
 import { createService } from '../src/repositories/services-repository.js';
 
 const now = new Date('2026-07-14T00:00:00.000Z');
@@ -168,6 +173,18 @@ describe.sequential('herramientas controladas del backend', () => {
 		expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
 	});
 
+	it('bloquea herramientas de dueno cuando WhatsApp no reconoce el numero', async () => {
+		const result = await executeToolSafely('get_expense_summary', {}, {
+			...context(),
+			ownerAuthorized: false,
+		});
+		expect(result).toMatchObject({
+			ok: false,
+			error: { code: 'VALIDATION_ERROR' },
+		});
+		expect(result.error.message).toContain('no está autorizado');
+	});
+
 	it('permite cambiar la personalidad desde el chat solo en modo dueño', async () => {
 		const clientTools = toolDeclarationsForMode('client').map((tool) => tool.name);
 		const ownerTools = toolDeclarationsForMode('owner').map((tool) => tool.name);
@@ -227,6 +244,33 @@ describe.sequential('herramientas controladas del backend', () => {
 		expect(changed).toEqual({ ok: true, data: { communicationStyle: 'semiformal' } });
 		expect((await getBusinessSettings(env.DB, { companyId: activeCompany.id })).businessProfile.communicationStyle).toBe('semiformal');
 		expect((await getBusinessSettings(env.DB, { companyId: otherCompany.id })).businessProfile.communicationStyle).toBe('friend');
+	});
+
+	it('prioriza la empresa con onboarding para los contactos nuevos', async () => {
+		const clientCompany = await env.DB.prepare("INSERT INTO companies (name) VALUES ('Empresa clientes') RETURNING id").first();
+		const onboardingCompany = await env.DB.prepare("INSERT INTO companies (name) VALUES ('Empresa onboarding') RETURNING id").first();
+		const baseSettings = await getBusinessSettings(env.DB);
+		await saveBusinessSettings(env.DB, {
+			...baseSettings,
+			onboardingEnabled: false,
+			businessProfile: { ...baseSettings.businessProfile, communicationStyle: 'friend' },
+		}, { companyId: clientCompany.id });
+		await createService(env.DB, {
+			name: 'Servicio activo', duration_minutes: 30, price_cents: 1000, enabled: true,
+		}, { companyId: clientCompany.id });
+		await saveBusinessSettings(env.DB, {
+			...baseSettings,
+			aiMode: 'owner',
+			onboardingEnabled: true,
+			businessProfile: { ...baseSettings.businessProfile, communicationStyle: 'formal' },
+		}, { companyId: onboardingCompany.id });
+
+		expect(await getOnboardingCompanyId(env.DB)).toBe(onboardingCompany.id);
+		expect(await getBotBusinessSettings(env.DB)).toMatchObject({
+			aiMode: 'owner',
+			onboardingEnabled: true,
+			businessProfile: { communicationStyle: 'formal' },
+		});
 	});
 
 	it('impide registrar pagos en modo cliente', async () => {

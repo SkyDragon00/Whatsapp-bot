@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildSystemPrompt } from '../src/ai/system-prompt.js';
 import { DEFAULT_BUSINESS_SETTINGS } from '../src/config/constants.js';
+import { TOOL_DECLARATIONS } from '../src/ai/tool-definitions.js';
 
 describe('prompt del asistente', () => {
 	it('incluye documentos y obliga a reconocer cuando falta informacion', () => {
@@ -59,5 +60,24 @@ describe('prompt del asistente', () => {
 		expect(prompt).toContain('En cuanto el cliente elija o confirme un servicio');
 		expect(prompt).toContain('indica en la misma respuesta el precio configurado');
 		expect(prompt).toContain('Si el servicio no tiene precio configurado, dilo claramente');
+	});
+
+	it('no solicita contraseña durante onboarding y explica la clave temporal automática', () => {
+		const prompt = buildSystemPrompt({
+			settings: { ...DEFAULT_BUSINESS_SETTINGS, onboardingEnabled: true },
+			onboardingIdentity: {
+				businessName: 'Griega Madre', username: 'Myriam', communicationStyle: 'semiformal',
+			},
+		});
+		expect(prompt).toContain('No preguntes ni solicites una contraseña');
+		expect(prompt).toContain('clave temporal 12345678');
+		expect(prompt).toContain('tres alternativas disponibles');
+		expect(prompt).not.toContain('nombre del negocio, usuario, contraseña');
+		expect(prompt).toContain('Nombre de usuario: "Myriam"');
+		expect(prompt).toContain('Estilo de comunicación: "semiformal"');
+		expect(prompt).toContain('Nunca vuelvas a preguntar por un campo que aparece en esta lista');
+		const onboardingTool = TOOL_DECLARATIONS.find((tool) => tool.name === 'register_business_from_onboarding');
+		expect(onboardingTool.parametersJsonSchema.required).not.toContain('password');
+		expect(onboardingTool.parametersJsonSchema.properties).not.toHaveProperty('password');
 	});
 });

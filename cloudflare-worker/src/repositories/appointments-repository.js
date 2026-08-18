@@ -34,20 +34,20 @@ export async function listAppointments(db, { includeCancelled = false, limit = 5
 	return result.results;
 }
 
-export async function findAppointmentsByCustomerName(db, customerName, { limit = 20 } = {}) {
+export async function findAppointmentsByCustomerName(db, customerName, { limit = 20, companyId = null } = {}) {
 	const name = requireString(customerName, 'El nombre del cliente', { min: 2, max: 120 });
 	if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new ValidationError('El límite de citas no es válido.');
 	const result = await db.prepare(
 		`SELECT a.id, a.customer_id, a.patient_name, a.service_id, a.service_name, a.service,
 		        a.start_at, a.end_at, a.status, a.phone
 		 FROM appointments a
-		 WHERE a.patient_name LIKE ?1 COLLATE NOCASE
+		 WHERE a.patient_name LIKE ?1 COLLATE NOCASE AND (?3 IS NULL OR a.company_id = ?3)
 		 ORDER BY a.start_at DESC, a.id DESC LIMIT ?2`,
-	).bind(`%${name}%`, limit).all();
+	).bind(`%${name}%`, limit, companyId).all();
 	return result.results;
 }
 
-export async function listAppointmentsInRange(db, { startAt, endAt, includeCancelled = false }) {
+export async function listAppointmentsInRange(db, { startAt, endAt, includeCancelled = false, companyId = null }) {
 	const start = toUtcIso(startAt, 'El inicio del rango');
 	const end = toUtcIso(endAt, 'El final del rango');
 	if (start >= end) throw new ValidationError('El rango de fechas no es válido.');
@@ -55,15 +55,15 @@ export async function listAppointmentsInRange(db, { startAt, endAt, includeCance
 	const result = await db
 		.prepare(
 			`SELECT * FROM appointments
-			 WHERE start_at < ?2 AND end_at > ?1 ${statusFilter}
+			 WHERE start_at < ?2 AND end_at > ?1 AND (?3 IS NULL OR company_id = ?3) ${statusFilter}
 			 ORDER BY start_at, id`,
 		)
-		.bind(start, end)
+		.bind(start, end, companyId)
 		.all();
 	return result.results;
 }
 
-export async function getCustomerAppointments(db, telegramUserId, { includeCancelled = false, limit = 100 } = {}) {
+export async function getCustomerAppointments(db, telegramUserId, { includeCancelled = false, limit = 100, companyId = null } = {}) {
 	const userId = requireString(telegramUserId, 'El identificador del usuario', { max: 32 });
 	if (!/^-?\d+$/.test(userId)) throw new ValidationError('El identificador de Telegram no es válido.');
 	if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new ValidationError('El límite de citas no es válido.');
@@ -71,11 +71,11 @@ export async function getCustomerAppointments(db, telegramUserId, { includeCance
 	const result = await db
 		.prepare(
 			`SELECT * FROM appointments
-			 WHERE telegram_user_id = ?1 ${statusFilter}
+			 WHERE telegram_user_id = ?1 AND (?3 IS NULL OR company_id = ?3) ${statusFilter}
 			 ORDER BY start_at, id
 			 LIMIT ?2`,
 		)
-		.bind(userId, limit)
+		.bind(userId, limit, companyId)
 		.all();
 	return result.results;
 }
@@ -109,7 +109,7 @@ export async function createAppointment(db, input, { now = new Date(), companyId
 	}, { now, companyId: effectiveCompanyId });
 
 	const [service, settings] = await Promise.all([
-		getServiceById(db, appointment.service_id),
+		getServiceById(db, appointment.service_id, { companyId: effectiveCompanyId }),
 		getBusinessSettings(db, { companyId: effectiveCompanyId }),
 	]);
 	if (!service) throw new ValidationError('El servicio no existe o está deshabilitado.');
@@ -187,7 +187,7 @@ export async function createAppointment(db, input, { now = new Date(), companyId
 	}
 }
 
-export async function cancelAppointment(db, { appointmentId, telegramUserId, now = new Date() }) {
+export async function cancelAppointment(db, { appointmentId, telegramUserId, now = new Date(), companyId = null }) {
 	const id = requirePositiveInteger(appointmentId, 'La cita');
 	const userId = requireString(telegramUserId, 'El identificador del usuario', { max: 32 });
 	if (!/^-?\d+$/.test(userId)) throw new ValidationError('El identificador de Telegram no es válido.');
@@ -196,14 +196,14 @@ export async function cancelAppointment(db, { appointmentId, telegramUserId, now
 		.prepare(
 			`UPDATE appointments
 			 SET status = 'cancelled', updated_at = ?3
-			 WHERE id = ?1 AND telegram_user_id = ?2 AND status = '${ACTIVE_APPOINTMENT_STATUS}'
+			 WHERE id = ?1 AND telegram_user_id = ?2 AND (?4 IS NULL OR company_id = ?4) AND status = '${ACTIVE_APPOINTMENT_STATUS}'
 			 RETURNING *`,
 		)
-		.bind(id, userId, now.toISOString())
+		.bind(id, userId, now.toISOString(), companyId)
 		.first();
 	if (cancelled) return cancelled;
 
-	const existing = await db.prepare('SELECT * FROM appointments WHERE id = ?1 LIMIT 1').bind(id).first();
+	const existing = await db.prepare('SELECT * FROM appointments WHERE id = ?1 AND (?2 IS NULL OR company_id = ?2) LIMIT 1').bind(id, companyId).first();
 	if (!existing) throw new AppointmentNotFoundError();
 	if (existing.telegram_user_id !== userId) throw new AppointmentOwnershipError();
 	return existing;

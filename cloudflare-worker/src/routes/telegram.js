@@ -7,6 +7,7 @@ import { runGeminiAgent } from '../ai/gemini.js';
 import { buildSystemPrompt } from '../ai/system-prompt.js';
 import { toolDeclarationsForMode } from '../ai/tool-definitions.js';
 import { clearConversation, loadConversation, saveConversation } from '../conversation/store.js';
+import { deriveOnboardingIdentity } from '../onboarding/conversation-state.js';
 import { downloadTelegramFile, sendTelegramMessage } from '../integrations/telegram.js';
 import { attachPaymentReceipt } from '../repositories/payments-repository.js';
 import { storeReceipt } from '../storage/receipts.js';
@@ -134,6 +135,7 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 	}
 
 	const history = await loadConversation(env.CONVERSATIONS, chatId, { mode: conversationMode });
+	const onboardingIdentity = settings.onboardingEnabled ? deriveOnboardingIdentity(history, text) : {};
 	let knowledgeDocuments = [];
 	try {
 		knowledgeDocuments = await getKnowledgeContext(env.DB);
@@ -143,7 +145,10 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 	}
 	const responseText = await runGeminiAgent({
 		apiKey: env.GEMINI_API_KEY,
-		systemPrompt: buildSystemPrompt({ settings, knowledgeDocuments, now }),
+		systemPrompt: buildSystemPrompt({
+			settings, knowledgeDocuments, now,
+			onboardingIdentity,
+		}),
 		toolDeclarations: toolDeclarationsForMode(settings.aiMode, settings.onboardingEnabled),
 		history,
 		userMessage: text,
@@ -151,6 +156,7 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 		toolContext: {
 			env,
 			now,
+			onboardingIdentity,
 			userMessage: text,
 			telegram: { chatId, userId, username },
 			sourceUpdateId: identity ? `telegram:${identity}` : null,
