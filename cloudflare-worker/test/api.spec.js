@@ -357,7 +357,7 @@ describe.sequential('API administrativa', () => {
 				customer_name: 'Cliente API',
 				service_id: service.id,
 				start_datetime: '2026-07-20T14:00:00.000Z',
-				source_update_id: 'api-update-1',
+				source_update_id: 'whatsapp:api-update-1',
 			},
 			{ now: new Date('2026-07-14T00:00:00.000Z') },
 		);
@@ -373,6 +373,7 @@ describe.sequential('API administrativa', () => {
 				start_at: '2026-07-20T14:00:00.000Z',
 				date_iso: '2026-07-20T14:00:00.000Z',
 				end_at: '2026-07-20T14:45:00.000Z',
+				origin: 'whatsapp',
 			}),
 		]);
 	});

@@ -8,6 +8,10 @@ function conversationKey(chatId) {
 	return `conversation:${chatId}`;
 }
 
+function appointmentStateKey(chatId) {
+	return `appointment-state:${chatId}`;
+}
+
 function sanitizeText(value) {
 	return String(value)
 		.replace(/\bAIza[A-Za-z0-9_-]{20,}\b/g, '[secreto omitido]')
@@ -41,5 +45,26 @@ export async function saveConversation(kv, chatId, messages, { mode } = {}) {
 }
 
 export async function clearConversation(kv, chatId) {
-	await kv.delete(conversationKey(chatId));
+	await Promise.all([
+		kv.delete(conversationKey(chatId)),
+		kv.delete(appointmentStateKey(chatId)),
+	]);
+}
+
+export async function loadAppointmentState(kv, chatId) {
+	const stored = await kv.get(appointmentStateKey(chatId), 'json');
+	if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {};
+	return Object.fromEntries(
+		['customerName', 'serviceName', 'price', 'date', 'time']
+			.filter((key) => typeof stored[key] === 'string' && stored[key].trim())
+			.map((key) => [key, stored[key].trim().slice(0, 160)]),
+	);
+}
+
+export async function saveAppointmentState(kv, chatId, state) {
+	await kv.put(
+		appointmentStateKey(chatId),
+		JSON.stringify(state),
+		{ expirationTtl: CONVERSATION_TTL_SECONDS },
+	);
 }

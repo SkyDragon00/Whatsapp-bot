@@ -53,6 +53,33 @@ describe('prompt del asistente', () => {
 		expect(prompt).toContain('confirmación explícita posterior');
 	});
 
+	it('pide AM o PM para horas ambiguas e informa el horario del local', () => {
+		const prompt = buildSystemPrompt({
+			settings: { ...DEFAULT_BUSINESS_SETTINGS, aiMode: 'client' },
+		});
+		expect(prompt).toContain('Una hora expresada solamente con un número del 1 al 12');
+		expect(prompt).toContain('Pregunta si se refiere a AM o PM');
+		expect(prompt).toContain('en esa misma respuesta, indica el horario de atención del día solicitado');
+		expect(prompt).toContain('lunes: 09:00 a 17:00');
+		expect(prompt).toContain('domingo: cerrado');
+	});
+
+	it('conserva los datos recopilados de la cita y prohíbe volver a pedirlos', () => {
+		const prompt = buildSystemPrompt({
+			settings: { ...DEFAULT_BUSINESS_SETTINGS, aiMode: 'client' },
+			appointmentState: {
+				customerName: 'Bart Simpson',
+				serviceName: 'Corte Barba',
+				price: '$5',
+				date: '21 de agosto de 2026',
+				time: '09:00',
+			},
+		});
+		expect(prompt).toContain('DATOS DE LA CITA YA RECOPILADOS');
+		expect(prompt).toContain('Nombre del cliente: "Bart Simpson"');
+		expect(prompt).toContain('Nunca vuelvas a pedir un campo presente');
+	});
+
 	it('obliga a informar el precio cuando el cliente elige un servicio', () => {
 		const prompt = buildSystemPrompt({
 			settings: { ...DEFAULT_BUSINESS_SETTINGS, aiMode: 'client' },
@@ -66,7 +93,7 @@ describe('prompt del asistente', () => {
 		const prompt = buildSystemPrompt({
 			settings: { ...DEFAULT_BUSINESS_SETTINGS, onboardingEnabled: true },
 			onboardingIdentity: {
-				businessName: 'Griega Madre', username: 'Myriam', communicationStyle: 'semiformal',
+				businessName: 'Griega Madre', username: 'Myriam', communicationStyle: 'semiformal', address: 'Av. Central 10',
 			},
 		});
 		expect(prompt).toContain('No preguntes ni solicites una contraseña');
@@ -74,10 +101,34 @@ describe('prompt del asistente', () => {
 		expect(prompt).toContain('tres alternativas disponibles');
 		expect(prompt).not.toContain('nombre del negocio, usuario, contraseña');
 		expect(prompt).toContain('Nombre de usuario: "Myriam"');
-		expect(prompt).toContain('Estilo de comunicación: "semiformal"');
+		expect(prompt).toContain('El estilo de comunicación es siempre semiformal');
+		expect(prompt).toContain('ESTILO SEMIFORMAL');
+		expect(prompt).toContain('Dirección o ubicación: "Av. Central 10"');
+		expect(prompt).toContain('Trata "ubicación" y "dirección" como el mismo dato');
 		expect(prompt).toContain('Nunca vuelvas a preguntar por un campo que aparece en esta lista');
 		const onboardingTool = TOOL_DECLARATIONS.find((tool) => tool.name === 'register_business_from_onboarding');
 		expect(onboardingTool.parametersJsonSchema.required).not.toContain('password');
 		expect(onboardingTool.parametersJsonSchema.properties).not.toHaveProperty('password');
+		expect(onboardingTool.parametersJsonSchema.properties).not.toHaveProperty('communication_style');
+	});
+
+	it('acepta horarios en onboarding y documenta el horario predeterminado', () => {
+		const prompt = buildSystemPrompt({
+			settings: { ...DEFAULT_BUSINESS_SETTINGS, onboardingEnabled: true },
+		});
+		expect(prompt).toContain('Solicita únicamente estos cuatro bloques');
+		expect(prompt).toContain('business_hours');
+		expect(prompt).toContain('apertura igual o posterior al cierre');
+	});
+
+	it('mantiene el onboarding breve y no pregunta por datos adicionales', () => {
+		const prompt = buildSystemPrompt({
+			settings: { ...DEFAULT_BUSINESS_SETTINGS, onboardingEnabled: true },
+		});
+		expect(prompt).toContain('nombre del negocio, nombre de usuario, horario de atención y servicio');
+		expect(prompt).toContain('Nunca vuelvas a pedir, confirmar de forma aislada ni explicar un dato');
+		expect(prompt).toContain('No sugieras ni preguntes por dirección');
+		expect(prompt).toContain('Si el usuario ofrece espontáneamente información adicional');
+		expect(prompt).not.toContain('Indica que puede adjuntar un PDF');
 	});
 });

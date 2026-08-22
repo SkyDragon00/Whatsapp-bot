@@ -10,6 +10,8 @@ import { logEvent } from '../utils/logging.js';
 import { TOOL_DECLARATIONS } from './tool-definitions.js';
 import { executeToolSafely, isAllowedToolName, isExplicitConfirmation } from './tools.js';
 
+const BUSINESS_LOGIN_URL = 'https://cloudflare-worker.domenica-escobar-moyano.workers.dev/';
+
 function historyToContents(history, userMessage) {
 	const contents = history.map((message) => ({
 		role: message.role,
@@ -99,6 +101,23 @@ async function requestGemini({ apiKey, systemPrompt, contents, fetchImpl, iterat
 	return result;
 }
 
+async function requestGeminiWithRetry(options) {
+	try {
+		return await requestGemini(options);
+	} catch (error) {
+		const retryableStatus = error?.status === 429 || error?.status >= 500;
+		const retryableNetworkError = error?.code !== 'GEMINI_REQUEST_FAILED' && !(error instanceof AiProtocolError);
+		if (!retryableStatus && !retryableNetworkError) throw error;
+		if (options.diagnostics) {
+			logEvent('info', 'gemini_request_retry', {
+				...requestMetadata(options.contents, options.iteration, options.toolDeclarations),
+				httpStatus: error?.status,
+			});
+		}
+		return requestGemini(options);
+	}
+}
+
 function getCandidateContent(result) {
 	const content = result?.candidates?.[0]?.content;
 	if (!content || !Array.isArray(content.parts)) {
@@ -145,7 +164,7 @@ export async function runGeminiAgent({
 	let appointmentRetryRequested = false;
 
 	for (let iteration = 0; iteration < GEMINI_MAX_TOOL_ITERATIONS; iteration += 1) {
-		const result = await requestGemini({ apiKey, systemPrompt, contents, fetchImpl, iteration, diagnostics, toolDeclarations });
+		const result = await requestGeminiWithRetry({ apiKey, systemPrompt, contents, fetchImpl, iteration, diagnostics, toolDeclarations });
 		const modelContent = getCandidateContent(result);
 		const functionCalls = modelContent.parts
 			.map((part) => part.functionCall)
@@ -195,7 +214,7 @@ export async function runGeminiAgent({
 				if (response?.ok) {
 					const businessName = response.data?.businessName || 'tu negocio';
 					const username = response.data?.username || 'tu usuario';
-					return `Listo. El negocio ${businessName} y el usuario ${username} fueron creados correctamente. Ya puedes iniciar sesión con la clave temporal 12345678. Por seguridad, la página te pedirá cambiarla antes de entrar al panel.`;
+					return `Listo. El negocio ${businessName} y el usuario ${username} fueron creados correctamente. Ya puedes iniciar sesión con la clave temporal 12345678. Por seguridad, la página te pedirá cambiarla antes de entrar al panel.\n\nIngresa aquí para iniciar sesión: ${BUSINESS_LOGIN_URL}`;
 				}
 				const message = response?.error?.message || 'No se pudo completar el registro.';
 				return `No pude crear la cuenta: ${message} Revisa los datos e inténtalo nuevamente; todavía no intentes iniciar sesión.`;

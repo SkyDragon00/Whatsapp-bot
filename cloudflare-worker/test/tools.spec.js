@@ -173,6 +173,40 @@ describe.sequential('herramientas controladas del backend', () => {
 		expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
 	});
 
+	it('usa el servicio confirmado por nombre aunque Gemini envíe un ID incorrecto', async () => {
+		const otherService = await createService(env.DB, {
+			name: 'Mega relax', duration_minutes: 120, price_cents: 12000, enabled: true,
+		});
+		const result = await executeToolSafely('create_appointment', {
+			customer_name: 'Pepe Juanes',
+			service_id: 999999,
+			start_datetime: '2026-07-20T14:00:00.000Z',
+		}, {
+			...context(),
+			appointmentState: { serviceName: 'Mega relax' },
+		});
+
+		expect(result.ok).toBe(true);
+		expect(result.data.appointment).toMatchObject({
+			customer_name: 'Pepe Juanes', service_id: otherService.id, service_name: 'Mega relax',
+		});
+	});
+
+	it('corrige una hora local que Gemini envió erróneamente como UTC', async () => {
+		const result = await executeToolSafely(
+			'create_appointment',
+			{
+				customer_name: 'Cliente Hora Local',
+				service_id: service.id,
+				start_datetime: '2026-07-20T09:00:00.000Z',
+			},
+			context(),
+		);
+
+		expect(result.ok).toBe(true);
+		expect(result.data.appointment.start_at).toBe('2026-07-20T14:00:00.000Z');
+	});
+
 	it('bloquea herramientas de dueno cuando WhatsApp no reconoce el numero', async () => {
 		const result = await executeToolSafely('get_expense_summary', {}, {
 			...context(),

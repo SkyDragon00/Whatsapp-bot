@@ -14,6 +14,11 @@ function serializeAppointment(appointment) {
 	const startAt = appointment.start_at ?? appointment.date_iso;
 	const priceCents = appointment.price_cents == null ? null : Number(appointment.price_cents);
 	const paidCents = Number(appointment.paid_cents || 0);
+	const origin = String(appointment.source_update_id || '').startsWith('whatsapp:')
+		? 'whatsapp'
+		: String(appointment.source_update_id || '').startsWith('telegram:')
+			? 'telegram'
+			: appointment.telegram_user_id ? 'chat' : 'admin';
 	return {
 		...appointment,
 		customer_name: customerName,
@@ -22,7 +27,7 @@ function serializeAppointment(appointment) {
 		service: serviceName,
 		start_at: startAt,
 		date_iso: startAt,
-		origin: appointment.telegram_user_id ? 'telegram' : 'admin',
+		origin,
 		price_cents: priceCents,
 		price: priceCents == null ? null : priceCents / 100,
 		paid_cents: paidCents,

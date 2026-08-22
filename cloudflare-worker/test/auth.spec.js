@@ -118,6 +118,35 @@ describe.sequential('usuarios y moderación', () => {
 		expect(forbidden.status).toBe(403);
 	});
 
+	it('reserva onboarding y Primeros pasos para el super admin', async () => {
+		const adminLogin = await SELF.fetch(`${ORIGIN}/api/auth/login`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ username: 'admin', password: 'admin' }),
+		});
+		const cookie = sessionCookie(adminLogin);
+		const updated = await SELF.fetch(`${ORIGIN}/api/moderator/ai-settings`, {
+			method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: cookie },
+			body: JSON.stringify({ onboardingEnabled: true, firstStepsEnabled: true }),
+		});
+		expect(updated.status).toBe(200);
+		expect(await updated.json()).toEqual({ onboardingEnabled: true, firstStepsEnabled: true });
+
+		const loaded = await SELF.fetch(`${ORIGIN}/api/moderator/ai-settings`, { headers: { Cookie: cookie } });
+		expect(await loaded.json()).toEqual({ onboardingEnabled: true, firstStepsEnabled: true });
+		const moderatorRelogin = await SELF.fetch(`${ORIGIN}/api/auth/login`, {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ username: 'admin', password: 'admin' }),
+		});
+		expect(await moderatorRelogin.json()).toMatchObject({ firstStepsEnabled: false });
+		const forbidden = await SELF.fetch(`${ORIGIN}/api/moderator/ai-settings`);
+		expect(forbidden.status).toBe(403);
+
+		await SELF.fetch(`${ORIGIN}/api/moderator/ai-settings`, {
+			method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: cookie },
+			body: JSON.stringify({ onboardingEnabled: false, firstStepsEnabled: false }),
+		});
+	});
+
 	it('muestra el propietario y permite al super admin eliminar la empresa y sus datos', async () => {
 		const suffix = crypto.randomUUID().slice(0, 8);
 		const businessName = `Empresa eliminable ${suffix}`;
@@ -131,6 +160,11 @@ describe.sequential('usuarios y moderación', () => {
 		const companyId = registered.user.companyId;
 		const phone = `+59398${suffix.replace(/[^0-9]/g, '').padEnd(7, '0').slice(0, 7)}`;
 		await env.DB.prepare('UPDATE users SET phone_e164 = ?1 WHERE company_id = ?2').bind(phone, companyId).run();
+		const conversationKey = `conversation:whatsapp:${phone.replace(/\D/g, '')}`;
+		await env.CONVERSATIONS.put(conversationKey, JSON.stringify({
+			mode: 'onboarding',
+			messages: [{ role: 'model', text: `El negocio ${businessName} fue creado correctamente.` }],
+		}));
 
 		const adminLogin = await SELF.fetch(`${ORIGIN}/api/auth/login`, {
 			method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -154,6 +188,7 @@ describe.sequential('usuarios y moderación', () => {
 		expect(await env.DB.prepare('SELECT id FROM companies WHERE id = ?1').bind(companyId).first()).toBeNull();
 		expect(await env.DB.prepare('SELECT id FROM users WHERE company_id = ?1').bind(companyId).first()).toBeNull();
 		expect((await env.DB.prepare("SELECT key FROM settings WHERE key LIKE ('company:' || ?1 || ':%')").bind(companyId).all()).results).toHaveLength(0);
+		expect(await env.CONVERSATIONS.get(conversationKey)).toBeNull();
 
 		const missing = await SELF.fetch(`${ORIGIN}/api/moderator/companies/${companyId}`, {
 			method: 'DELETE', headers: { Cookie: cookie },

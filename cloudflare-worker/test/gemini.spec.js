@@ -10,6 +10,18 @@ function geminiResponse(parts) {
 }
 
 describe('bucle de herramientas de Gemini', () => {
+	it('reintenta una vez cuando Gemini falla transitoriamente', async () => {
+		const fetchImpl = vi.fn()
+			.mockRejectedValueOnce(new Error('network timeout'))
+			.mockResolvedValueOnce(geminiResponse([{ text: 'Servicio recibido.' }]));
+
+		await expect(runGeminiAgent({
+			apiKey: 'test-key', systemPrompt: 'Prompt', userMessage: 'Niñera canina',
+			toolContext: {}, fetchImpl,
+		})).resolves.toBe('Servicio recibido.');
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+	});
+
 	it('no anuncia una cita hasta que create_appointment confirma la escritura', async () => {
 		const fetchImpl = vi.fn()
 			.mockResolvedValueOnce(geminiResponse([{ text: 'Listo, tu cita quedó confirmada.' }]))
@@ -60,6 +72,7 @@ describe('bucle de herramientas de Gemini', () => {
 		});
 		expect(success).toContain('fueron creados correctamente');
 		expect(success).toContain('12345678');
+		expect(success).toContain('Ingresa aquí para iniciar sesión: https://cloudflare-worker.domenica-escobar-moyano.workers.dev/');
 		expect(successFetch).toHaveBeenCalledTimes(1);
 
 		const failure = await runGeminiAgent({
@@ -71,6 +84,7 @@ describe('bucle de herramientas de Gemini', () => {
 		});
 		expect(failure).toContain('No pude crear la cuenta');
 		expect(failure).toContain('todavía no intentes iniciar sesión');
+		expect(failure).not.toContain('cloudflare-worker.domenica-escobar-moyano.workers.dev');
 	});
 
 	it('integra usuario, list_services, functionResponse y respuesta final en orden', async () => {

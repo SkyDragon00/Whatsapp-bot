@@ -28,6 +28,7 @@
 
   body {
     margin: 0;
+    overflow-x: hidden;
     background: var(--bg);
     font-family: 'Roboto', Arial, sans-serif;
     color: var(--text);
@@ -74,6 +75,7 @@
     color: var(--text-secondary);
     font-size: 12px;
   }
+  #mobileLogout { display: none; }
 
   .app-shell {
     display: flex;
@@ -336,6 +338,7 @@
   .expense-message.success { color: var(--green); }
 
   .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  #expensesView .table-wrap { margin-bottom: 22px; }
   .expense-table { width: 100%; border-collapse: collapse; min-width: 980px; }
   .expense-table th, .expense-table td { padding: 11px 12px; border-bottom: 1px solid #eeeeee; text-align: left; vertical-align: top; }
   .expense-table th { background: #f8f9fa; color: var(--text-secondary); font-size: 12px; font-weight: 500; }
@@ -766,9 +769,6 @@
   .ai-hero p { color: var(--text-secondary); margin: 0; line-height:1.5; }
   .ai-form-body { display:grid; gap:20px; padding:24px; background:#f8faff; }
   .ai-mode-section { padding:24px; border:1px solid #e4e8f0; border-radius:18px; background:#fff; }
-  .onboarding-status{display:flex;align-items:flex-start;gap:15px;border-color:#cfe2ff;background:linear-gradient(120deg,#f6f9ff,#f5fbf8)}
-  .onboarding-status-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:13px;background:#e8f0fe;color:#1967d2;font-size:21px}
-  .onboarding-badge{display:inline-block;margin-top:5px;padding:4px 9px;border-radius:99px;background:#e6f4ea;color:#137333;font-size:11px;font-weight:700}
   .onboarding-switch-row{display:flex;align-items:center;justify-content:space-between;gap:20px}
   .onboarding-switch-copy p{margin:5px 0 0;color:var(--text-secondary);font-size:13px;line-height:1.5}
   .mode-switch{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;cursor:pointer}
@@ -816,6 +816,47 @@
   .ai-mode-detail strong { display: block; margin-bottom: 4px; color:var(--text); }
   .ai-mode-actions { position:sticky; bottom:0; display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin:0 -24px -24px; padding:16px 24px; border-top:1px solid #e3e7ee; background:rgba(255,255,255,.94); backdrop-filter:blur(8px); }
   .ai-mode-message { color: var(--text-secondary); font-size: 13px; }
+
+  .tour-layer{display:contents}
+  .tour-backdrop{position:fixed;inset:0;z-index:100;background:rgba(20,28,44,.58)}
+  .tour-card{position:fixed;z-index:103;width:min(360px,calc(100vw - 32px));padding:22px;border-radius:18px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+  .tour-card h2{margin:0 0 9px;font:600 22px 'Google Sans','Roboto',sans-serif;color:var(--text)}
+  .tour-card p{margin:0;color:var(--text-secondary);font-size:14px;line-height:1.55}
+  .tour-card[data-arrow]::before{content:'';position:absolute;top:34px;border:12px solid transparent}
+  .tour-card[data-arrow="left"]::before{right:100%;border-right-color:#fff}
+  .tour-card[data-arrow="right"]::before{left:100%;border-left-color:#fff}
+  .tour-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px}
+  .tour-progress{color:#78808b;font-size:12px}
+  .tour-target{position:relative!important;z-index:102!important;outline:4px solid #fff;box-shadow:0 0 0 8px rgba(26,115,232,.8),0 10px 30px rgba(0,0,0,.35)!important}
+  .sidebar:has(.tour-target){z-index:102}
+  .tour-clickable{animation:tourPulse 1.4s ease-in-out infinite}
+  @keyframes tourPulse{50%{box-shadow:0 0 0 13px rgba(26,115,232,.35),0 10px 30px rgba(0,0,0,.35)}}
+  @media(max-width:640px){
+    .tour-card{
+      left:12px!important;
+      right:12px!important;
+      bottom:max(12px,env(safe-area-inset-bottom))!important;
+      top:auto!important;
+      width:auto;
+      max-height:calc(100dvh - 24px - env(safe-area-inset-bottom));
+      padding:18px;
+      overflow-y:auto;
+      transform:none!important;
+    }
+    .tour-card::before{display:none}
+    .tour-card[data-position="center"]{
+      left:50%!important;
+      right:auto!important;
+      top:50%!important;
+      bottom:auto!important;
+      width:min(360px,calc(100vw - 24px));
+      transform:translate(-50%,-50%)!important;
+    }
+    #settingsOpen.tour-target{background:#fff!important}
+    .tour-card h2{font-size:20px}
+    .tour-actions{position:sticky;bottom:-18px;margin:18px -18px -18px;padding:12px 18px 18px;background:#fff}
+    .tour-target{scroll-margin-block:80px 260px}
+  }
 
   /* Refined week and day calendar views */
   .fc .fc-timeGridWeek-view, .fc .fc-timeGridDay-view { border:1px solid #e3e8ef; border-radius:14px; overflow:hidden; background:#fff; }
@@ -894,6 +935,14 @@
     .side-nav { display:flex; gap:6px; overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; scroll-snap-type:x proximity; }
     .side-nav::-webkit-scrollbar { display:none; }
     .nav-item { width:auto; min-width:max-content; flex:0 0 auto; justify-content:center; padding:9px 12px; scroll-snap-align:start; }
+    .nav-item[data-view="calendar"] { order:1; }
+    .nav-item[data-view="ai-settings"] { order:2; }
+    .nav-item[data-view="expenses"] { order:3; }
+    .nav-item[data-view="invoices"] { order:4; }
+    .nav-item[data-view="income"] { order:5; }
+    .nav-item[data-view="dashboard"] { order:6; }
+    .nav-item[data-view="customers"] { order:7; }
+    .nav-item[data-view="moderator"] { order:8; }
     main { width: 100%; }
     .form-field, .form-field.wide { grid-column: span 6; }
     .customers-layout { grid-template-columns: 1fr; }
@@ -914,7 +963,16 @@
     .header-status { display: none; }
     header > svg { width:24px; height:24px; }
     header .text-button { min-height:36px; padding:7px 9px; font-size:13px; }
+    #refreshAppointments, #mobileLogout {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:66px;
+      height:36px;
+      padding:0;
+    }
     #adminSession { display:none; }
+    #mobileLogout { display:inline-flex; }
     .view-header { display:grid; gap:12px; margin-bottom:14px; }
     .view-header h2 { font-size:21px; }
     .view-header p { line-height:1.45; }
@@ -1040,6 +1098,15 @@
     .expense-table td.expenses-empty, .dashboard-table td.dashboard-empty { display:block; padding:24px 8px; text-align:center; }
     .expense-table td.expenses-empty::before, .dashboard-table td.dashboard-empty::before { content:none; }
   }
+
+  @media (max-width: 380px) {
+    header h1 { max-width:118px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    header .text-button { padding-inline:6px; }
+    .fc .fc-header-toolbar { grid-template-columns:minmax(0,1fr) auto; }
+    .fc .fc-button { padding:.4em .48em; }
+    .tour-actions { align-items:stretch; flex-direction:column; }
+    .tour-actions .primary-button { width:100%; }
+  }
 </style>
 <style>
   .auth-page{min-height:100vh;display:grid;place-items:center;padding:32px 18px;background:linear-gradient(135deg,#eef5ff,#fff 55%,#e8f5ef)}
@@ -1057,7 +1124,8 @@
   .auth-error{min-height:20px;color:var(--danger);font-size:13px}body.logged-out>header,body.logged-out>.app-shell{display:none}body:not(.logged-out)>.auth-page{display:none}
   .company-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}.company-card{display:flex;flex-direction:column;padding:20px;border:1px solid var(--border);border-radius:14px;background:#fff}
   .company-card h3{margin:0 0 8px;font:600 18px 'Google Sans',sans-serif}.company-meta{color:var(--text-secondary);font-size:13px;line-height:1.7}.company-owner{margin:10px 0 16px;padding:10px 12px;border-radius:10px;background:#f6f8fc;color:var(--text-secondary);font-size:13px;line-height:1.7}.company-owner strong{color:var(--text-primary)}.company-delete{align-self:flex-end;margin-top:auto;border:1px solid #f0c7c3;border-radius:8px;padding:7px 12px;background:#fff;color:var(--red);font:600 13px inherit;cursor:pointer}.company-delete:hover{background:#fce8e6}.company-delete:disabled{opacity:.55;cursor:wait}
-  @media(max-width:720px){.auth-shell{grid-template-columns:1fr}.auth-intro{padding:32px}.auth-intro h1{font-size:29px}.auth-panel{padding:30px}}
+  @media(max-width:720px){.auth-page{padding:16px 10px}.auth-shell{grid-template-columns:1fr;border-radius:18px}.auth-intro{padding:32px}.auth-intro h1{font-size:29px}.auth-panel{max-height:none;padding:30px}}
+  @media(max-width:480px){.auth-intro{padding:24px 20px}.auth-intro h1{font-size:25px}.auth-panel{padding:24px 18px}.onboarding-style{grid-template-columns:1fr}.company-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body class="logged-out">
@@ -1117,6 +1185,7 @@
   <div class="header-spacer"></div>
   <span class="header-status" id="refreshStatus" aria-live="polite"></span>
   <button class="text-button" id="refreshAppointments" type="button">Actualizar</button>
+  <button class="text-button" id="mobileLogout" type="button">Salir</button>
   <button class="text-button" id="adminSession" type="button">Sesión</button>
   <button class="icon-button" id="settingsOpen" aria-label="Configuracion" title="Configuracion">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -1167,6 +1236,16 @@
 
   <main>
     <section class="app-view" id="moderatorView" data-view-panel="moderator" hidden>
+      <div class="view-header"><div><h2>Configuración de IA</h2><p>Administra el comportamiento global del asistente para nuevos usuarios.</p></div></div>
+      <div class="content-card ai-mode-section onboarding-switch-row">
+        <div class="onboarding-switch-copy"><div class="ai-mode-eyebrow">Modo onboarding</div><h3>Activar onboarding del bot</h3><p id="moderatorOnboardingDescription">Activa el flujo guiado para registrar nuevos negocios o desactívalo para usar el funcionamiento normal.</p></div>
+        <label class="mode-switch" title="Activar o desactivar onboarding"><input id="moderatorOnboardingEnabled" type="checkbox" aria-describedby="moderatorOnboardingDescription"><span class="mode-switch-track" aria-hidden="true"></span></label>
+      </div>
+      <div class="content-card ai-mode-section onboarding-switch-row">
+        <div class="onboarding-switch-copy"><div class="ai-mode-eyebrow">Primeros pasos</div><h3>Activar tour para usuarios</h3><p id="moderatorFirstStepsDescription">Muestra una guía de la página principal, la configuración de IA y los gastos después de iniciar sesión.</p></div>
+        <label class="mode-switch" title="Activar o desactivar Primeros pasos"><input id="moderatorFirstStepsEnabled" type="checkbox" aria-describedby="moderatorFirstStepsDescription"><span class="mode-switch-track" aria-hidden="true"></span></label>
+      </div>
+      <div class="ai-mode-message" id="moderatorAiMessage" role="status" aria-live="polite"></div>
       <div class="view-header"><div><h2>Empresas</h2><p>Todos los negocios registrados en la plataforma.</p></div></div>
       <div class="company-grid" id="companyGrid"></div>
     </section>
@@ -1197,6 +1276,13 @@
             <div class="summary-label">Cantidad de gastos</div>
             <div class="summary-value" id="expenseCount">0</div>
           </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="expense-table">
+            <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Proveedor</th><th>Pago</th><th>Comprobante</th><th>Monto</th><th></th></tr></thead>
+            <tbody id="expensesTableBody"><tr><td class="expenses-empty" colspan="8">Cargando gastos...</td></tr></tbody>
+          </table>
         </div>
 
         <form class="expense-form" id="expenseForm">
@@ -1268,12 +1354,6 @@
           </div>
         </form>
 
-        <div class="table-wrap">
-          <table class="expense-table">
-            <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Proveedor</th><th>Pago</th><th>Comprobante</th><th>Monto</th><th></th></tr></thead>
-            <tbody id="expensesTableBody"><tr><td class="expenses-empty" colspan="8">Cargando gastos...</td></tr></tbody>
-          </table>
-        </div>
       </div>
     </section>
 
@@ -1363,15 +1443,7 @@
         </div>
         <form id="aiModeForm">
           <div class="ai-form-body">
-          <div class="ai-mode-section onboarding-switch-row">
-            <div class="onboarding-switch-copy"><div class="ai-mode-eyebrow">Modo onboarding</div><h3>Activar onboarding del bot</h3><p id="onboardingModeDescription">Actívalo cuando quieras probar el flujo guiado de registro y apágalo para volver al funcionamiento normal.</p></div>
-            <label class="mode-switch" title="Activar o desactivar onboarding"><input id="onboardingEnabled" type="checkbox" aria-describedby="onboardingModeDescription"><span class="mode-switch-track" aria-hidden="true"></span></label>
-          </div>
-          <div class="ai-mode-section onboarding-status" hidden>
-            <div class="onboarding-status-icon" aria-hidden="true">✓</div>
-            <div><div class="ai-mode-eyebrow">Modo onboarding</div><h3>Tu asistente ya conoce lo esencial</h3><p>Se presentó como asistente de IA, creó la cuenta del negocio y guardó el estilo de comunicación elegido. Puedes ajustar aquí la información opcional o agregar documentos cuando quieras.</p><span class="onboarding-badge">Onboarding completado</span></div>
-          </div>
-          <div class="ai-mode-section">
+          <div class="ai-mode-section" id="aiRoleSection">
             <div class="ai-mode-eyebrow">Rol del asistente</div>
             <h3>¿A quién asistirá?</h3>
             <p>Selecciona el nivel de acceso y las tareas que podrá realizar.</p>
@@ -1382,7 +1454,7 @@
             <div class="ai-mode-detail" id="aiModeDetail"></div>
           </div>
           <div class="ai-settings-section">
-            <div class="ai-section-heading"><div class="ai-section-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 5h16M7 12h10M10 19h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div><div><h3>Personalidad y negocio</h3><p class="section-copy">Define el tono de la conversación y la información que el asistente compartirá.</p></div></div>
+            <div class="ai-section-heading" id="aiPersonalityHeading"><div class="ai-section-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 5h16M7 12h10M10 19h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div><div><h3>Personalidad y negocio</h3><p class="section-copy">Define el tono de la conversación y la información que el asistente compartirá.</p></div></div>
             <div class="ai-preferences">
               <div class="full-width">
                 <div class="field-label">Estilo de comunicación</div>
@@ -1626,6 +1698,15 @@
   </div>
 </div>
 
+<div class="tour-layer" id="firstStepsTour" hidden>
+  <div class="tour-backdrop" aria-hidden="true"></div>
+  <section class="tour-card" id="firstStepsCard" role="dialog" aria-modal="true" aria-labelledby="firstStepsTitle">
+    <h2 id="firstStepsTitle"></h2>
+    <p id="firstStepsText"></p>
+    <div class="tour-actions"><span class="tour-progress" id="firstStepsProgress"></span><button class="primary-button" id="firstStepsNext" type="button"></button></div>
+  </section>
+</div>
+
 <script>
   // Demo temporal: el token vive solo durante la pestaña. Produccion debe usar Access o sesiones HTTP-only.
   const DEFAULT_API_BASE_URL = window.location.hostname.endsWith('.workers.dev')
@@ -1663,6 +1744,7 @@
   const refreshAppointments = document.getElementById('refreshAppointments');
   const refreshStatus = document.getElementById('refreshStatus');
   const adminSession = document.getElementById('adminSession');
+  const mobileLogout = document.getElementById('mobileLogout');
   const loginForm = document.getElementById('loginForm');
   const registerForm = document.getElementById('registerForm');
   const loginTab = document.getElementById('loginTab');
@@ -1709,7 +1791,15 @@
   const aiModeForm = document.getElementById('aiModeForm');
   const aiModeDetail = document.getElementById('aiModeDetail');
   const aiModeMessage = document.getElementById('aiModeMessage');
-  const onboardingEnabled = document.getElementById('onboardingEnabled');
+  const moderatorOnboardingEnabled = document.getElementById('moderatorOnboardingEnabled');
+  const moderatorFirstStepsEnabled = document.getElementById('moderatorFirstStepsEnabled');
+  const moderatorAiMessage = document.getElementById('moderatorAiMessage');
+  const firstStepsTour = document.getElementById('firstStepsTour');
+  const firstStepsCard = document.getElementById('firstStepsCard');
+  const firstStepsTitle = document.getElementById('firstStepsTitle');
+  const firstStepsText = document.getElementById('firstStepsText');
+  const firstStepsProgress = document.getElementById('firstStepsProgress');
+  const firstStepsNext = document.getElementById('firstStepsNext');
   const communicationStylePreviewLabel = document.getElementById('communicationStylePreviewLabel');
   const communicationStylePreviewMessage = document.getElementById('communicationStylePreviewMessage');
   const knowledgeFile = document.getElementById('knowledgeFile');
@@ -1740,10 +1830,33 @@
   let calendar = null;
   let currentAppointment = null;
   let activeView = 'calendar';
+  let firstStepsIndex = -1;
+  let firstStepsTarget = null;
+  let firstStepsTargetHandler = null;
 
   async function apiFetch(path, options = {}) {
-    const headers = new Headers(options.headers || {});
-    return fetch(`${API_BASE_URL}${path}`, { ...options, headers, credentials: 'include' });
+    const { retryNetworkFailure = false, ...fetchOptions } = options;
+    const headers = new Headers(fetchOptions.headers || {});
+    const request = () => fetch(`${API_BASE_URL}${path}`, {
+      ...fetchOptions,
+      headers,
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    try {
+      return await request();
+    } catch (error) {
+      if (!retryNetworkFailure || !(error instanceof TypeError)) throw error;
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
+      try {
+        return await request();
+      } catch (retryError) {
+        if (retryError instanceof TypeError) {
+          throw new Error('No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.');
+        }
+        throw retryError;
+      }
+    }
   }
 
   function showAuthForm(mode) {
@@ -1763,8 +1876,12 @@
       const response = await apiFetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.fromEntries(new FormData(form))),
+        retryNetworkFailure: endpoint === '/api/auth/login',
       });
-      await parseApiResponse(response, 'No se pudo completar la solicitud.');
+      const data = await parseApiResponse(response, 'No se pudo completar la solicitud.');
+      if (endpoint === '/api/auth/login' && data.firstStepsEnabled === true && data.user?.role !== 'super_admin') {
+        try { sessionStorage.setItem('startFirstStepsTour', '1'); } catch {}
+      }
       window.location.reload();
     } catch (error) {
       errorElement.textContent = error.message;
@@ -1840,6 +1957,101 @@
     renderCompanies(data.companies || []);
   }
 
+  async function loadModeratorAiSettings() {
+    const response = await apiFetch('/api/moderator/ai-settings');
+    const data = await parseApiResponse(response, 'No se pudo cargar la configuración de IA.');
+    moderatorOnboardingEnabled.checked = data.onboardingEnabled === true;
+    moderatorFirstStepsEnabled.checked = data.firstStepsEnabled === true;
+  }
+
+  const mobileFirstSteps = window.matchMedia('(max-width: 640px)').matches;
+  const firstSteps = [
+    { title: '¡Bienvenido!', text: 'Esta es la página principal. Aquí podrás ver todas las citas agendadas de tu negocio.', button: 'Comenzar' },
+    { title: 'Configuración de tu empresa', text: 'En este ícono puedes realizar cualquier cambio o configuración de tu empresa.', target: () => settingsOpen, mobilePosition: 'center', button: 'Siguiente' },
+    { title: 'Configuración de IA', text: 'Haz clic aquí para conocer cómo puedes configurar el comportamiento de tu asistente.', target: () => document.querySelector('[data-view="ai-settings"]'), clickView: 'ai-settings', button: 'Haz clic en Configuración de IA' },
+    ...(mobileFirstSteps ? [
+      { title: 'Rol del asistente', text: 'La IA tiene dos modos: en uno atenderá a tus clientes y en el otro funcionará como asistente del dueño con más funciones como registro de gastos e ingresos.', target: () => document.getElementById('aiRoleSection'), button: 'Siguiente' },
+      { title: 'Personalidad del bot', text: 'Aquí puedes definir el tono de conversación y la información que compartirá tu asistente.', target: () => document.getElementById('aiPersonalityHeading'), button: 'Siguiente' },
+    ] : [
+      { title: 'Elige cómo trabaja tu IA', text: 'En modo cliente, la IA se comporta como la ve tu cliente al agendar citas por WhatsApp. En modo dueño también puede agendar citas, registrar gastos e ingresos.', target: () => aiModeForm, button: 'Siguiente' },
+    ]),
+    { title: 'Gastos', text: 'Haz clic en Gastos para ver dónde puedes registrar y consultar los egresos de tu negocio.', target: () => document.querySelector('[data-view="expenses"]'), clickView: 'expenses', resetScroll: true, button: 'Haz clic en Gastos' },
+    { title: 'Control de gastos', text: 'Aquí encontrarás todos los gastos registrados y podrás agregar nuevos egresos. ¡Terminaste tus primeros pasos!', button: 'Finalizar' },
+  ];
+
+  function clearFirstStepsTarget() {
+    if (!firstStepsTarget) return;
+    firstStepsTarget.classList.remove('tour-target', 'tour-clickable');
+    if (firstStepsTargetHandler) firstStepsTarget.removeEventListener('click', firstStepsTargetHandler, true);
+    firstStepsTarget = null;
+    firstStepsTargetHandler = null;
+  }
+
+  function positionFirstStepsCard(target, mobilePosition) {
+    if (!target) {
+      firstStepsCard.dataset.position = 'center';
+      delete firstStepsCard.dataset.arrow;
+      firstStepsCard.style.left = '50%';
+      firstStepsCard.style.top = '50%';
+      firstStepsCard.style.transform = 'translate(-50%,-50%)';
+      return;
+    }
+    if (mobilePosition) firstStepsCard.dataset.position = mobilePosition;
+    else delete firstStepsCard.dataset.position;
+    firstStepsCard.style.transform = '';
+    const rect = target.getBoundingClientRect();
+    const width = Math.min(360, window.innerWidth - 32);
+    const fitsRight = rect.right + 22 + width <= window.innerWidth - 16;
+    const left = fitsRight
+      ? rect.right + 22
+      : Math.max(16, rect.left - width - 22);
+    firstStepsCard.dataset.arrow = fitsRight ? 'left' : 'right';
+    const cardHeight = firstStepsCard.offsetHeight || 210;
+    const top = Math.max(16, Math.min(window.innerHeight - cardHeight - 16, rect.top + rect.height / 2 - cardHeight / 2));
+    firstStepsCard.style.left = `${left}px`;
+    firstStepsCard.style.top = `${top}px`;
+  }
+
+  function finishFirstSteps() {
+    clearFirstStepsTarget();
+    firstStepsTour.hidden = true;
+    firstStepsIndex = -1;
+  }
+
+  function showFirstSteps(index) {
+    clearFirstStepsTarget();
+    if (index >= firstSteps.length) return finishFirstSteps();
+    firstStepsIndex = index;
+    const step = firstSteps[index];
+    firstStepsTitle.textContent = step.title;
+    firstStepsText.textContent = step.text;
+    firstStepsProgress.textContent = `${index + 1} de ${firstSteps.length}`;
+    firstStepsNext.textContent = step.button;
+    firstStepsNext.hidden = Boolean(step.clickView);
+    firstStepsTour.hidden = false;
+    firstStepsTarget = step.target?.() || null;
+    if (firstStepsTarget) {
+      firstStepsTarget.classList.add('tour-target');
+      firstStepsTarget.scrollIntoView({ block: 'nearest' });
+    }
+    if (step.clickView && firstStepsTarget) {
+      firstStepsTarget.classList.add('tour-clickable');
+      firstStepsTargetHandler = async (event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        await switchView(step.clickView);
+        if (step.resetScroll) {
+          window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+        }
+        showFirstSteps(index + 1);
+      };
+      firstStepsTarget.addEventListener('click', firstStepsTargetHandler, true);
+    }
+    window.requestAnimationFrame(() => positionFirstStepsCard(firstStepsTarget, step.mobilePosition));
+  }
+
   async function parseApiResponse(response, fallbackMessage) {
     let data;
     try {
@@ -1904,7 +2116,8 @@
     document.getElementById('modalDate').textContent = `${startText} - ${endText}`;
     document.getElementById('modalService').textContent = appt.service_name || appt.service || 'Servicio';
     document.getElementById('modalPhone').textContent = contact;
-    document.getElementById('modalStatus').textContent = `${appt.status || 'confirmed'} · ${appt.origin || 'telegram'}`;
+    const originLabels = { whatsapp: 'WhatsApp', telegram: 'Telegram', chat: 'Chat', admin: 'Panel' };
+    document.getElementById('modalStatus').textContent = `${appt.status || 'confirmed'} · ${originLabels[appt.origin] || 'Chat'}`;
     const paymentLabels = { unpaid: 'Sin pagar', partial: 'Parcialmente pagado', paid: 'Pagado' };
     const modalPaymentStatus = document.getElementById('modalPaymentStatus');
     modalPaymentStatus.textContent = paymentLabels[appt.payment_status] || 'Sin pagar';
@@ -1959,7 +2172,6 @@
 
   function renderSettingsForm(settings) {
     const profile = settings.businessProfile || {};
-    onboardingEnabled.checked = settings.onboardingEnabled === true;
     appointmentDuration.value = settings.appointmentDurationMinutes;
     businessTimezone.value = settings.businessTimezone || 'America/Guayaquil';
     slotInterval.value = settings.slotIntervalMinutes || 15;
@@ -2047,7 +2259,6 @@
   function readSettingsForm() {
     return {
       aiMode: currentSettings?.aiMode || 'owner',
-      onboardingEnabled: currentSettings?.onboardingEnabled === true,
       appointmentDurationMinutes: Number(appointmentDuration.value),
       businessTimezone: businessTimezone.value.trim(),
       slotIntervalMinutes: Number(slotInterval.value),
@@ -2069,7 +2280,7 @@
     const input = aiModeForm.querySelector(`input[value="${mode}"]`);
     if (input) input.checked = true;
     aiModeDetail.innerHTML = mode === 'owner'
-      ? '<strong>Modo dueño</strong>Puede agendar citas para clientes y registrar pagos recibidos o gastos del negocio desde Telegram.'
+      ? '<strong>Modo dueño</strong>Puede agendar citas para clientes y registrar pagos recibidos o gastos del negocio desde WhatsApp o Telegram.'
       : '<strong>Modo cliente</strong>Puede consultar servicios, revisar disponibilidad y gestionar sus citas. No puede registrar pagos ni gastos.';
   }
 
@@ -2297,7 +2508,7 @@
       empty.className = 'customer-empty';
       empty.textContent = 'Todavía no hay clientes registrados.';
       customerList.append(empty);
-      customerDetail.innerHTML = '<div class="customer-empty">Crea el primer cliente o agenda una cita desde Telegram.</div>';
+      customerDetail.innerHTML = '<div class="customer-empty">Crea el primer cliente o agenda una cita desde WhatsApp o Telegram.</div>';
       return;
     }
     for (const customer of customers) {
@@ -2349,7 +2560,9 @@
       `Cédula/RUC: ${customer.cedula_ruc || 'No registrada'}`,
       `Dirección: ${customer.address || 'No registrada'}`,
       `Teléfono: ${customer.phone || 'No registrado'}`,
-      customer.telegram_username ? `Telegram: @${customer.telegram_username}` : 'Telegram: No registrado',
+      customer.telegram_username
+        ? `${customer.contact_channel === 'whatsapp' ? 'WhatsApp' : customer.contact_channel === 'telegram' ? 'Telegram' : 'Chat'}: ${customer.contact_channel === 'telegram' ? '@' : ''}${customer.telegram_username}`
+        : 'Canal de chat: No registrado',
     ];
     for (const value of contactItems) { const chip = document.createElement('span'); chip.className = 'customer-contact-chip'; chip.textContent = value; contact.append(chip); }
     const historyTitle = document.createElement('h4'); historyTitle.textContent = `Historial de servicios (${customer.appointments.length})`;
@@ -2768,7 +2981,7 @@
     if (view === 'moderator') {
       companyGrid.innerHTML = '<div class="empty-state">Cargando empresas...</div>';
       try {
-        await loadCompanies();
+        await Promise.all([loadCompanies(), loadModeratorAiSettings()]);
       } catch (error) {
         companyGrid.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
         refreshStatus.textContent = error.message;
@@ -2944,10 +3157,12 @@
       submit.disabled = false;
     }
   });
-  adminSession.addEventListener('click', async () => {
+  async function logout() {
     await apiFetch('/api/auth/logout', { method: 'POST' });
     window.location.reload();
-  });
+  }
+  adminSession.addEventListener('click', logout);
+  mobileLogout.addEventListener('click', logout);
   cancelAppointmentButton.addEventListener('click', () => {
     cancelSelectedAppointment().catch((error) => { appointmentError.textContent = error.message; });
   });
@@ -3045,19 +3260,45 @@
       aiModeMessage.textContent = error.message;
     }
   });
-  onboardingEnabled.addEventListener('change', async () => {
-    const enabled = onboardingEnabled.checked;
-    onboardingEnabled.disabled = true;
-    aiModeMessage.textContent = enabled ? 'Activando modo onboarding...' : 'Desactivando modo onboarding...';
+  moderatorOnboardingEnabled.addEventListener('change', async () => {
+    const enabled = moderatorOnboardingEnabled.checked;
+    moderatorOnboardingEnabled.disabled = true;
+    moderatorAiMessage.textContent = enabled ? 'Activando modo onboarding...' : 'Desactivando modo onboarding...';
     try {
-      await saveSettings({ ...currentSettings, onboardingEnabled: enabled });
-      aiModeMessage.textContent = enabled ? 'Modo onboarding activado.' : 'Modo onboarding desactivado.';
+      const response = await apiFetch('/api/moderator/ai-settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ onboardingEnabled: enabled }),
+      });
+      await parseApiResponse(response, 'No se pudo actualizar la configuración de IA.');
+      moderatorAiMessage.textContent = enabled ? 'Modo onboarding activado.' : 'Modo onboarding desactivado.';
     } catch (error) {
-      onboardingEnabled.checked = !enabled;
-      aiModeMessage.textContent = error.message;
+      moderatorOnboardingEnabled.checked = !enabled;
+      moderatorAiMessage.textContent = error.message;
     } finally {
-      onboardingEnabled.disabled = false;
+      moderatorOnboardingEnabled.disabled = false;
     }
+  });
+  moderatorFirstStepsEnabled.addEventListener('change', async () => {
+    const enabled = moderatorFirstStepsEnabled.checked;
+    moderatorFirstStepsEnabled.disabled = true;
+    moderatorAiMessage.textContent = enabled ? 'Activando Primeros pasos...' : 'Desactivando Primeros pasos...';
+    try {
+      const response = await apiFetch('/api/moderator/ai-settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstStepsEnabled: enabled }),
+      });
+      await parseApiResponse(response, 'No se pudo actualizar Primeros pasos.');
+      moderatorAiMessage.textContent = enabled ? 'Primeros pasos activado.' : 'Primeros pasos desactivado.';
+    } catch (error) {
+      moderatorFirstStepsEnabled.checked = !enabled;
+      moderatorAiMessage.textContent = error.message;
+    } finally {
+      moderatorFirstStepsEnabled.disabled = false;
+    }
+  });
+  firstStepsNext.addEventListener('click', () => showFirstSteps(firstStepsIndex + 1));
+  window.addEventListener('resize', () => {
+    if (!firstStepsTour.hidden) positionFirstStepsCard(firstStepsTarget, firstSteps[firstStepsIndex]?.mobilePosition);
   });
   aiModeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -3067,7 +3308,6 @@
       await saveSettings({
         ...currentSettings,
         aiMode: mode,
-        onboardingEnabled: onboardingEnabled.checked,
         businessProfile: readBusinessProfileForm(),
       });
       renderAiMode();
@@ -3125,6 +3365,7 @@
         refreshAppointments.hidden = true;
         renderCompanies(initialModeratorCompanies || []);
         initialModeratorCompanies = null;
+        await loadModeratorAiSettings();
         refreshStatus.textContent = 'Super administrador';
         return;
       }
@@ -3211,6 +3452,12 @@
     });
 
     calendar.render();
+    try {
+      if (sessionStorage.getItem('startFirstStepsTour') === '1') {
+        sessionStorage.removeItem('startFirstStepsTour');
+        showFirstSteps(0);
+      }
+    } catch {}
     refreshStatus.textContent = 'Conectado a D1';
     window.setInterval(() => {
       if (document.visibilityState === 'visible') {

@@ -1,7 +1,7 @@
 -- Snapshot del esquema final. Para bases existentes, aplica los archivos de migrations/ en orden.
 CREATE TABLE IF NOT EXISTS services (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+	name TEXT NOT NULL COLLATE NOCASE,
 	description TEXT,
 	duration_minutes INTEGER NOT NULL CHECK (duration_minutes BETWEEN 5 AND 480),
 	price_cents INTEGER CHECK (price_cents IS NULL OR price_cents >= 0),
@@ -99,7 +99,8 @@ CREATE TABLE IF NOT EXISTS ai_knowledge_documents (
 	content TEXT NOT NULL,
 	size_bytes INTEGER NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 100000),
 	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	company_id INTEGER REFERENCES companies(id)
 );
 
 CREATE TABLE IF NOT EXISTS companies (
@@ -146,6 +147,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_company_full_name
 CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_legacy_full_name
 	ON customers(full_name COLLATE NOCASE) WHERE company_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_services_enabled_name ON services(enabled, name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_services_company_name
+	ON services(company_id, name COLLATE NOCASE) WHERE company_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_services_legacy_name
+	ON services(name COLLATE NOCASE) WHERE company_id IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_source_update ON appointments(source_update_id)
 WHERE source_update_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date DESC, id DESC);

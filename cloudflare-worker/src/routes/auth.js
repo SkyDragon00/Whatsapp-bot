@@ -4,6 +4,7 @@ import { DEFAULT_BUSINESS_SETTINGS } from '../config/constants.js';
 import { normalizeBusinessSettings } from '../domain/validation.js';
 import { jsonResponse } from '../utils/responses.js';
 import { listModeratorCompanies } from './moderator.js';
+import { getBusinessSettings } from '../repositories/settings-repository.js';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9._-]{3,40}$/;
 
@@ -136,7 +137,12 @@ export async function handleAuthApi(request, env, url) {
 			return jsonResponse({ ok: false, error: 'Usuario o contraseña incorrectos.' }, 401);
 		}
 		const session = await createSession(env.DB, user.id);
-		return jsonResponse({ ok: true, user: publicUser(user) }, 200, { 'Set-Cookie': session.cookie });
+		const platformSettings = await getBusinessSettings(env.DB);
+		return jsonResponse({
+			ok: true,
+			user: publicUser(user),
+			firstStepsEnabled: user.role !== 'super_admin' && platformSettings.firstStepsEnabled === true,
+		}, 200, { 'Set-Cookie': session.cookie });
 	}
 
 	if (request.method === 'POST' && url.pathname === '/api/auth/change-password') {

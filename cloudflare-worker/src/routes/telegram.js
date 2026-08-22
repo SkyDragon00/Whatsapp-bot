@@ -6,14 +6,24 @@ import {
 import { runGeminiAgent } from '../ai/gemini.js';
 import { buildSystemPrompt } from '../ai/system-prompt.js';
 import { toolDeclarationsForMode } from '../ai/tool-definitions.js';
-import { clearConversation, loadConversation, saveConversation } from '../conversation/store.js';
+import {
+	clearConversation,
+	loadAppointmentState,
+	loadConversation,
+	saveAppointmentState,
+	saveConversation,
+} from '../conversation/store.js';
+import { deriveAppointmentState } from '../conversation/appointment-state.js';
+import { addPaymentMediaReminder, buildClientWelcomeMessage, isPaymentRegistrationRequest } from '../conversation/welcome.js';
+import { buildAmbiguousHourReply } from '../domain/appointment-time-clarification.js';
 import { deriveOnboardingIdentity } from '../onboarding/conversation-state.js';
 import { downloadTelegramFile, sendTelegramMessage } from '../integrations/telegram.js';
 import { attachPaymentReceipt } from '../repositories/payments-repository.js';
 import { storeReceipt } from '../storage/receipts.js';
 import { handleExpenseConfirmation, processExpenseMessage } from '../expenses/flow.js';
 import { isExplicitExpenseText, routeTelegramMessage } from '../expenses/telegram-router.js';
-import { getBotBusinessSettings } from '../repositories/settings-repository.js';
+import { getBotBusinessSettings, getBotCompanyId } from '../repositories/settings-repository.js';
+import { listServices } from '../repositories/services-repository.js';
 import { getKnowledgeContext } from '../repositories/knowledge-repository.js';
 import { readJsonWithLimit } from '../utils/http.js';
 import { logError } from '../utils/logging.js';
@@ -24,7 +34,7 @@ const CLIENT_START_MESSAGE =
 const OWNER_START_MESSAGE =
 	'Hola. Estoy en modo dueño. Puedo agendar citas para tus clientes y registrar pagos recibidos o gastos del negocio.';
 const ONBOARDING_START_MESSAGE =
-	'Hola. Soy un asistente de inteligencia artificial y te ayudaré a configurar tu negocio. Empecemos: ¿cuál es el nombre de tu negocio?';
+	'Hola, te ayudaré a configurar tu negocio. ¿Cuál es el nombre del negocio?';
 const CANCEL_MESSAGE = 'Listo, reinicié la conversación actual. Puedes comenzar de nuevo cuando quieras.';
 const SAFE_ERROR_MESSAGE = 'Tuve un problema procesando el mensaje. Intenta nuevamente en unos segundos.';
 
@@ -109,9 +119,16 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 			env.CONVERSATIONS.delete(`pending-payment-receipt:${chatId}`),
 		]);
 		const settings = await getBotBusinessSettings(env.DB);
-		await sendTelegramMessage(chatId, settings.onboardingEnabled
+		const startMessage = settings.onboardingEnabled
 			? ONBOARDING_START_MESSAGE
-			: settings.aiMode === 'owner' ? OWNER_START_MESSAGE : CLIENT_START_MESSAGE, env);
+			: settings.aiMode === 'owner'
+				? OWNER_START_MESSAGE
+				: buildClientWelcomeMessage(await listServices(env.DB, { limit: 100, companyId: await getBotCompanyId(env.DB) }));
+		const conversationMode = settings.onboardingEnabled ? 'onboarding' : 'normal';
+		await saveConversation(env.CONVERSATIONS, chatId, [
+			{ role: 'model', text: startMessage },
+		], { mode: conversationMode });
+		await sendTelegramMessage(chatId, startMessage, env);
 		return;
 	}
 	if (command === '/cancelar') {
@@ -134,7 +151,37 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 		return;
 	}
 
-	const history = await loadConversation(env.CONVERSATIONS, chatId, { mode: conversationMode });
+	const [history, storedAppointmentState] = await Promise.all([
+		loadConversation(env.CONVERSATIONS, chatId, { mode: conversationMode }),
+		loadAppointmentState(env.CONVERSATIONS, chatId),
+	]);
+	if (!settings.onboardingEnabled && settings.aiMode === 'client' && history.length === 0) {
+		const companyId = await getBotCompanyId(env.DB);
+		const welcomeMessage = buildClientWelcomeMessage(await listServices(env.DB, { limit: 100, companyId }));
+		await saveConversation(env.CONVERSATIONS, chatId, [
+			{ role: 'user', text }, { role: 'model', text: welcomeMessage },
+		], { mode: conversationMode });
+		await sendTelegramMessage(chatId, welcomeMessage, env);
+		return;
+	}
+	const appointmentState = settings.onboardingEnabled
+		? {}
+		: deriveAppointmentState(history, text, storedAppointmentState);
+	const ambiguousHourReply = settings.onboardingEnabled
+		? null
+		: buildAmbiguousHourReply(text, settings.businessHours);
+	if (ambiguousHourReply) {
+		await Promise.all([
+			saveConversation(env.CONVERSATIONS, chatId, [
+				...history,
+				{ role: 'user', text },
+				{ role: 'model', text: ambiguousHourReply },
+			], { mode: conversationMode }),
+			saveAppointmentState(env.CONVERSATIONS, chatId, appointmentState),
+		]);
+		await sendTelegramMessage(chatId, ambiguousHourReply, env);
+		return;
+	}
 	const onboardingIdentity = settings.onboardingEnabled ? deriveOnboardingIdentity(history, text) : {};
 	let knowledgeDocuments = [];
 	try {
@@ -143,11 +190,12 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 		// Los documentos enriquecen las respuestas, pero nunca deben tumbar el flujo principal del bot.
 		logError('knowledge_context_unavailable', error, { identity });
 	}
-	const responseText = await runGeminiAgent({
+	let responseText = await runGeminiAgent({
 		apiKey: env.GEMINI_API_KEY,
 		systemPrompt: buildSystemPrompt({
 			settings, knowledgeDocuments, now,
 			onboardingIdentity,
+			appointmentState,
 		}),
 		toolDeclarations: toolDeclarationsForMode(settings.aiMode, settings.onboardingEnabled),
 		history,
@@ -156,19 +204,30 @@ export async function processTelegramUpdate({ update, message, identity, env, no
 		toolContext: {
 			env,
 			now,
+			appointmentState,
 			onboardingIdentity,
 			userMessage: text,
 			telegram: { chatId, userId, username },
 			sourceUpdateId: identity ? `telegram:${identity}` : null,
 		},
 	});
+	if (settings.aiMode === 'owner' && isPaymentRegistrationRequest(text)) {
+		responseText = addPaymentMediaReminder(responseText);
+	}
 
-	await sendTelegramMessage(chatId, responseText, env);
-	await saveConversation(env.CONVERSATIONS, chatId, [
+	const updatedHistory = [
 		...history,
 		{ role: 'user', text },
 		{ role: 'model', text: responseText },
-	], { mode: conversationMode });
+	];
+	const updatedAppointmentState = /^Listo\. La cita\b.*quedó registrada correctamente/si.test(responseText)
+		? {}
+		: deriveAppointmentState(updatedHistory, '', appointmentState);
+	await Promise.all([
+		saveConversation(env.CONVERSATIONS, chatId, updatedHistory, { mode: conversationMode }),
+		saveAppointmentState(env.CONVERSATIONS, chatId, updatedAppointmentState),
+	]);
+	await sendTelegramMessage(chatId, responseText, env);
 }
 
 async function finishClaimedUpdate({ update, message, identity, env, processUpdate }) {

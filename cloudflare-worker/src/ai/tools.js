@@ -163,20 +163,45 @@ async function createAppointmentTool(rawArgs, context) {
 	if (settings.aiMode === 'client' && !isExplicitConfirmation(context.userMessage)) {
 		throw new ValidationError('Antes de agendar, muestra todos los datos de la cita y espera una confirmación explícita del cliente.');
 	}
-	const created = await createAppointment(
-		context.env.DB,
-		{
-			telegram_user_id: context.telegram.userId,
-			telegram_chat_id: context.telegram.chatId,
-			telegram_username: context.telegram.username,
-			customer_name: args.customer_name,
-			service_id: args.service_id,
-			start_datetime: args.start_datetime,
-			phone: args.phone,
-			source_update_id: context.sourceUpdateId,
-		},
-		{ now: context.now, companyId: context.companyId },
-	);
+	let serviceId = args.service_id;
+	if (context.appointmentState?.serviceName) {
+		const confirmedService = await resolveService(context.env.DB, {
+			serviceName: context.appointmentState.serviceName,
+		}, { companyId: context.companyId });
+		if (!confirmedService) throw new ValidationError('El servicio no existe o está deshabilitado.');
+		serviceId = confirmedService.id;
+	}
+	const appointmentInput = {
+		telegram_user_id: context.telegram.userId,
+		telegram_chat_id: context.telegram.chatId,
+		telegram_username: context.telegram.username,
+		customer_name: args.customer_name,
+		service_id: serviceId,
+		start_datetime: args.start_datetime,
+		phone: args.phone,
+		source_update_id: context.sourceUpdateId,
+	};
+	let created;
+	try {
+		created = await createAppointment(
+			context.env.DB,
+			appointmentInput,
+			{ now: context.now, companyId: context.companyId },
+		);
+	} catch (error) {
+		if (!(error instanceof ValidationError) || !error.message.includes('outside_hours')) throw error;
+		const generatedDate = new Date(args.start_datetime);
+		if (Number.isNaN(generatedDate.getTime())) throw error;
+		const localDate = `${generatedDate.getUTCFullYear()}-${String(generatedDate.getUTCMonth() + 1).padStart(2, '0')}-${String(generatedDate.getUTCDate()).padStart(2, '0')}`;
+		const localTime = `${String(generatedDate.getUTCHours()).padStart(2, '0')}:${String(generatedDate.getUTCMinutes()).padStart(2, '0')}`;
+		const correctedStart = zonedDateTimeToUtc(localDate, localTime, settings.businessTimezone);
+		if (correctedStart === generatedDate.toISOString()) throw error;
+		created = await createAppointment(
+			context.env.DB,
+			{ ...appointmentInput, start_datetime: correctedStart },
+			{ now: context.now, companyId: context.companyId },
+		);
+	}
 	return { appointment: serializeAppointment(created) };
 }
 
@@ -245,17 +270,21 @@ export async function executeTool(name, rawArgs, context) {
 
 	switch (name) {
 		case 'register_business_from_onboarding': {
-			assertAllowedKeys(args, ['business_name', 'username', 'communication_style', 'address', 'arrival_instructions', 'cancellation_policy', 'general_notes', 'payment_methods']);
+			assertAllowedKeys(args, ['business_name', 'username', 'communication_style', 'address', 'location', 'arrival_instructions', 'cancellation_policy', 'general_notes', 'payment_methods', 'services', 'business_hours']);
 			const settings = await getBotBusinessSettings(context.env.DB);
 			if (!settings.onboardingEnabled) throw new ValidationError('El modo onboarding está desactivado.');
 			if (!isExplicitConfirmation(context.userMessage)) {
 				throw new ValidationError('Antes de registrar, muestra el resumen y espera una confirmación explícita del usuario.');
 			}
+			if (!context.onboardingIdentity?.businessName || !context.onboardingIdentity?.username) {
+				throw new ValidationError('No se pudieron verificar por separado el nombre del negocio y el usuario. Solicita únicamente el dato faltante antes de registrar.');
+			}
 			return registerOnboardingBusiness(context.env.DB, {
 				...args,
 				...(context.onboardingIdentity?.businessName ? { business_name: context.onboardingIdentity.businessName } : {}),
 				...(context.onboardingIdentity?.username ? { username: context.onboardingIdentity.username } : {}),
-				...(context.onboardingIdentity?.communicationStyle ? { communication_style: context.onboardingIdentity.communicationStyle } : {}),
+				communication_style: 'semiformal',
+				...(context.onboardingIdentity?.address ? { address: context.onboardingIdentity.address } : {}),
 			}, { ownerPhone: context.whatsappPhone ?? null });
 		}
 		case 'get_business_settings': {

@@ -15,6 +15,7 @@ import {
 	sendWhatsAppTypingIndicator,
 } from '../src/integrations/whatsapp.js';
 import { findUserByPhone, normalizePhoneE164 } from '../src/repositories/user-identity-repository.js';
+import { hasCompletedOnboardingHistory } from '../src/routes/whatsapp.js';
 
 const message = {
 	from: '593999111222',
@@ -97,6 +98,23 @@ describe('webhook de WhatsApp', () => {
 		expect(authorizeWhatsAppUser(settings, null)).toEqual({
 			ownerAuthorized: false,
 			settings,
+		});
+	});
+
+	it('detecta memoria de un onboarding completado para un numero ya desvinculado', () => {
+		expect(hasCompletedOnboardingHistory([
+			{ role: 'model', text: 'Listo. El negocio Heaven says y el usuario Jorge fueron creados correctamente.' },
+		])).toBe(true);
+		expect(hasCompletedOnboardingHistory([
+			{ role: 'model', text: '¿Cuál es el horario de atención?' },
+		])).toBe(false);
+	});
+
+	it('omite el onboarding para un numero vinculado a una cuenta de dueno', () => {
+		const settings = { aiMode: 'owner', onboardingEnabled: true };
+		expect(authorizeWhatsAppUser(settings, { role: 'admin', company_id: 7 })).toEqual({
+			ownerAuthorized: true,
+			settings: { aiMode: 'owner', onboardingEnabled: false },
 		});
 	});
 

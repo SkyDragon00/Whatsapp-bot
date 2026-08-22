@@ -13,14 +13,45 @@ export const TOOL_DECLARATIONS = [
 			properties: {
 				business_name: { type: 'string' },
 				username: { type: 'string' },
-				communication_style: { type: 'string', enum: ['formal', 'semiformal', 'friend'] },
 				address: { type: 'string' },
+				location: { type: 'string', description: 'Alias de address cuando el usuario dice ubicación.' },
 				arrival_instructions: { type: 'string' },
 				cancellation_policy: { type: 'string' },
 				general_notes: { type: 'string' },
 				payment_methods: { type: 'array', items: { type: 'string' } },
+				services: {
+					type: 'array',
+					description: 'Servicios adicionales. Cada uno requiere todos sus campos y el precio se expresa en dólares.',
+					maxItems: 50,
+					items: {
+						type: 'object',
+						properties: {
+							name: { type: 'string' },
+							description: { type: 'string' },
+							duration_minutes: { type: 'integer' },
+							price: { type: 'number' },
+						},
+						required: ['name', 'description', 'duration_minutes', 'price'],
+						additionalProperties: false,
+					},
+				},
+				business_hours: {
+					type: 'array',
+					description: 'Días abiertos indicados por el usuario. day usa 0=domingo, 1=lunes, ..., 6=sábado. Los días omitidos quedan cerrados.',
+					maxItems: 7,
+					items: {
+						type: 'object',
+						properties: {
+							day: { type: 'integer', minimum: 0, maximum: 6 },
+							start: { type: 'string', description: 'Hora de apertura HH:MM en formato de 24 horas.' },
+							end: { type: 'string', description: 'Hora de cierre HH:MM en formato de 24 horas.' },
+						},
+						required: ['day', 'start', 'end'],
+						additionalProperties: false,
+					},
+				},
 			},
-			required: ['business_name', 'username', 'communication_style'],
+			required: ['business_name', 'username'],
 			additionalProperties: false,
 		},
 	},
@@ -52,7 +83,7 @@ export const TOOL_DECLARATIONS = [
 	},
 	{
 		name: 'find_available_slots',
-		description: 'Busca espacios disponibles reales para un servicio en una fecha o rango local del negocio. Si el cliente pide una hora concreta, usa time para comprobar exactamente esa hora.',
+		description: 'Busca espacios disponibles reales para un servicio en una fecha o rango local del negocio. Si el cliente pide una hora concreta, usa time para comprobar exactamente esa hora. No la llames si el usuario dio solo una hora del 1 al 12 sin aclarar AM o PM.',
 		parametersJsonSchema: {
 			type: 'object',
 			properties: {
@@ -87,7 +118,7 @@ export const TOOL_DECLARATIONS = [
 	},
 	{
 		name: 'get_customer_appointments',
-		description: 'Consulta las citas activas asociadas al usuario actual de Telegram.',
+		description: 'Consulta las citas activas asociadas al usuario actual del canal de chat.',
 		parametersJsonSchema: emptyParameters,
 	},
 	{

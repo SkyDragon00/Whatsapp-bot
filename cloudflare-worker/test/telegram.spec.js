@@ -91,7 +91,15 @@ describe('webhook de Telegram', () => {
 			env,
 		});
 
-		expect(await loadConversation(env.CONVERSATIONS, '8001')).toEqual([]);
+		const savedHistory = await loadConversation(env.CONVERSATIONS, '8001');
+		if (command === '/start') {
+			expect(savedHistory).toEqual([
+				expect.objectContaining({ role: 'model' }),
+			]);
+			expect(savedHistory[0].text).not.toContain('mensaje anterior');
+		} else {
+			expect(savedHistory).toEqual([]);
+		}
 		expect(fetchImpl).toHaveBeenCalledTimes(1);
 	});
 

@@ -80,7 +80,12 @@ export async function findOrCreateCustomer(db, input, { now = new Date(), compan
 
 export async function listCustomers(db, { companyId = null } = {}) {
 	const result = await db.prepare(
-		`SELECT c.*, COUNT(a.id) AS appointment_count, MAX(a.start_at) AS last_appointment_at
+		`SELECT c.*, COUNT(a.id) AS appointment_count, MAX(a.start_at) AS last_appointment_at,
+		        CASE
+		          WHEN SUM(CASE WHEN a.source_update_id LIKE 'whatsapp:%' THEN 1 ELSE 0 END) > 0 THEN 'whatsapp'
+		          WHEN SUM(CASE WHEN a.source_update_id LIKE 'telegram:%' THEN 1 ELSE 0 END) > 0 THEN 'telegram'
+		          ELSE NULL
+		        END AS contact_channel
 		 FROM customers c LEFT JOIN appointments a ON a.customer_id = c.id
 		 WHERE (?1 IS NULL OR c.company_id = ?1)
 		 GROUP BY c.id ORDER BY c.last_name COLLATE NOCASE, c.first_name COLLATE NOCASE`,
@@ -94,7 +99,7 @@ export async function getCustomerWithHistory(db, customerId) {
 	if (!customer) return null;
 	const history = await db.prepare(
 		`SELECT a.id, a.service_id, a.service_name, a.service, a.start_at, a.end_at, a.status,
-		        a.phone, a.telegram_username, a.created_at, s.price_cents,
+		        a.phone, a.telegram_username, a.source_update_id, a.created_at, s.price_cents,
 		        COALESCE(SUM(p.amount_cents), 0) AS paid_cents
 		 FROM appointments a
 		 LEFT JOIN services s ON s.id = a.service_id

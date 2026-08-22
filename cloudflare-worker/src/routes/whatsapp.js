@@ -7,7 +7,16 @@ import { runGeminiAgent } from '../ai/gemini.js';
 import { transcribeAppointmentAudio } from '../ai/transcription.js';
 import { buildSystemPrompt } from '../ai/system-prompt.js';
 import { toolDeclarationsForMode } from '../ai/tool-definitions.js';
-import { clearConversation, loadConversation, saveConversation } from '../conversation/store.js';
+import {
+	clearConversation,
+	loadAppointmentState,
+	loadConversation,
+	saveAppointmentState,
+	saveConversation,
+} from '../conversation/store.js';
+import { deriveAppointmentState } from '../conversation/appointment-state.js';
+import { addPaymentMediaReminder, buildClientWelcomeMessage, isPaymentRegistrationRequest } from '../conversation/welcome.js';
+import { buildAmbiguousHourReply } from '../domain/appointment-time-clarification.js';
 import { deriveOnboardingIdentity } from '../onboarding/conversation-state.js';
 import {
 	downloadWhatsAppMedia,
@@ -20,8 +29,9 @@ import { routeWhatsAppMessage } from '../expenses/whatsapp-router.js';
 import { attachPaymentReceipt } from '../repositories/payments-repository.js';
 import { storeReceipt } from '../storage/receipts.js';
 import { getKnowledgeContext } from '../repositories/knowledge-repository.js';
-import { getBotCompanyId, getBusinessSettings, getOnboardingCompanyId } from '../repositories/settings-repository.js';
+import { getBotCompanyId, getBusinessSettings } from '../repositories/settings-repository.js';
 import { findUserByPhone } from '../repositories/user-identity-repository.js';
+import { listServices } from '../repositories/services-repository.js';
 import { logError } from '../utils/logging.js';
 import { jsonResponse } from '../utils/responses.js';
 
@@ -30,7 +40,7 @@ const CLIENT_START_MESSAGE =
 const OWNER_START_MESSAGE =
 	'Hola. Estoy en modo dueño. Puedo agendar citas para tus clientes y registrar pagos recibidos.';
 const ONBOARDING_START_MESSAGE =
-	'Hola. Soy un asistente de inteligencia artificial y te ayudaré a configurar tu negocio. Empecemos: ¿cuál es el nombre de tu negocio?';
+	'Hola, te ayudaré a configurar tu negocio. ¿Cuál es el nombre del negocio?';
 const CANCEL_MESSAGE = 'Listo, reinicié la conversación actual. Puedes comenzar de nuevo cuando quieras.';
 const SAFE_ERROR_MESSAGE = 'Tuve un problema procesando el mensaje. Intenta nuevamente en unos segundos.';
 const MAX_WEBHOOK_BYTES = 512_000;
@@ -39,13 +49,25 @@ function conversationId(sender) {
 	return `whatsapp:${sender}`;
 }
 
+export function hasCompletedOnboardingHistory(history = []) {
+	return history.some((message) => {
+		if (message?.role !== 'model') return false;
+		const text = String(message.text ?? '').toLocaleLowerCase('es');
+		return /(?:negocio|empresa).{0,160}(?:fue creado|fue registrada|fueron creados|registro (?:ya )?fue completado)/s.test(text)
+			|| /(?:fueron creados|registro (?:ya )?fue completado).{0,160}(?:negocio|empresa)/s.test(text);
+	});
+}
+
 export function authorizeWhatsAppUser(settings, linkedUser) {
 	const ownerAuthorized = linkedUser?.role === 'admin' && Number.isInteger(linkedUser.company_id);
+	const authorizedSettings = ownerAuthorized
+		? { ...settings, onboardingEnabled: false }
+		: settings.onboardingEnabled
+			? settings
+			: { ...settings, aiMode: 'client' };
 	return {
 		ownerAuthorized,
-		settings: ownerAuthorized || settings.onboardingEnabled
-			? settings
-			: { ...settings, aiMode: 'client' },
+		settings: authorizedSettings,
 	};
 }
 
@@ -123,10 +145,13 @@ export function handleWhatsAppVerification(request, env, url = new URL(request.u
 export async function processWhatsAppMessage({ message, env, now = new Date() }) {
 	const recipient = String(message.from);
 	const linkedUser = await findUserByPhone(env.DB, recipient);
+	const platformSettings = await getBusinessSettings(env.DB);
+	const platformOnboardingEnabled = platformSettings.onboardingEnabled === true;
 	const companyId = linkedUser?.company_id
-		?? await getOnboardingCompanyId(env.DB)
-		?? await getBotCompanyId(env.DB);
-	const businessSettings = await getBusinessSettings(env.DB, { companyId });
+		?? (platformOnboardingEnabled ? null : await getBotCompanyId(env.DB));
+	const businessSettings = !linkedUser && platformOnboardingEnabled
+		? platformSettings
+		: await getBusinessSettings(env.DB, { companyId });
 	const authorization = authorizeWhatsAppUser(businessSettings, linkedUser);
 	const { ownerAuthorized, settings } = authorization;
 	const channelId = conversationId(recipient);
@@ -177,13 +202,16 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 			await sendWhatsAppMessage(recipient, CANCEL_MESSAGE, env);
 			return;
 		}
-		await sendWhatsAppMessage(
-			recipient,
-			settings.onboardingEnabled
-				? ONBOARDING_START_MESSAGE
-				: settings.aiMode === 'owner' ? OWNER_START_MESSAGE : CLIENT_START_MESSAGE,
-			env,
-		);
+		const startMessage = settings.onboardingEnabled
+			? ONBOARDING_START_MESSAGE
+			: settings.aiMode === 'owner'
+				? OWNER_START_MESSAGE
+				: buildClientWelcomeMessage(await listServices(env.DB, { limit: 100, companyId }));
+		const conversationMode = settings.onboardingEnabled ? 'onboarding' : 'normal';
+		await saveConversation(env.CONVERSATIONS, channelId, [
+			{ role: 'model', text: startMessage },
+		], { mode: conversationMode });
+		await sendWhatsAppMessage(recipient, startMessage, env);
 		return;
 	}
 
@@ -211,7 +239,41 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 		return;
 	}
 	const conversationMode = settings.onboardingEnabled ? 'onboarding' : 'normal';
-	const history = await loadConversation(env.CONVERSATIONS, channelId, { mode: conversationMode });
+	let [history, storedAppointmentState] = await Promise.all([
+		loadConversation(env.CONVERSATIONS, channelId, { mode: conversationMode }),
+		loadAppointmentState(env.CONVERSATIONS, channelId),
+	]);
+	if (!settings.onboardingEnabled && settings.aiMode === 'client' && history.length === 0) {
+		const welcomeMessage = buildClientWelcomeMessage(await listServices(env.DB, { limit: 100, companyId }));
+		await saveConversation(env.CONVERSATIONS, channelId, [
+			{ role: 'user', text }, { role: 'model', text: welcomeMessage },
+		], { mode: conversationMode });
+		await sendWhatsAppMessage(recipient, welcomeMessage, env);
+		return;
+	}
+	if (settings.onboardingEnabled && !linkedUser && hasCompletedOnboardingHistory(history)) {
+		await clearConversation(env.CONVERSATIONS, channelId);
+		history = [];
+		storedAppointmentState = {};
+	}
+	const appointmentState = settings.onboardingEnabled
+		? {}
+		: deriveAppointmentState(history, text, storedAppointmentState);
+	const ambiguousHourReply = settings.onboardingEnabled
+		? null
+		: buildAmbiguousHourReply(text, settings.businessHours);
+	if (ambiguousHourReply) {
+		await Promise.all([
+			saveConversation(env.CONVERSATIONS, channelId, [
+				...history,
+				{ role: 'user', text },
+				{ role: 'model', text: ambiguousHourReply },
+			], { mode: conversationMode }),
+			saveAppointmentState(env.CONVERSATIONS, channelId, appointmentState),
+		]);
+		await sendWhatsAppMessage(recipient, ambiguousHourReply, env);
+		return;
+	}
 	const onboardingIdentity = settings.onboardingEnabled ? deriveOnboardingIdentity(history, text) : {};
 	let knowledgeDocuments = [];
 	try {
@@ -219,11 +281,12 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 	} catch (error) {
 		logError('knowledge_context_unavailable', error, { identity: message.id, channel: 'whatsapp' });
 	}
-	const responseText = await runGeminiAgent({
+	let responseText = await runGeminiAgent({
 		apiKey: env.GEMINI_API_KEY,
 		systemPrompt: buildSystemPrompt({
 			settings, knowledgeDocuments, now,
 			onboardingIdentity,
+			appointmentState,
 		}),
 		toolDeclarations: toolDeclarationsForMode(settings.aiMode, settings.onboardingEnabled),
 		history,
@@ -233,6 +296,7 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 			env,
 			now,
 			companyId,
+			appointmentState,
 			linkedUser,
 			ownerAuthorized,
 			onboardingIdentity,
@@ -243,13 +307,23 @@ export async function processWhatsAppMessage({ message, env, now = new Date() })
 			sourceUpdateId: `whatsapp:${message.id}`,
 		},
 	});
+	if (ownerAuthorized && settings.aiMode === 'owner' && isPaymentRegistrationRequest(text)) {
+		responseText = addPaymentMediaReminder(responseText);
+	}
 
-	await sendWhatsAppMessage(recipient, responseText, env);
-	await saveConversation(env.CONVERSATIONS, channelId, [
+	const updatedHistory = [
 		...history,
 		{ role: 'user', text },
 		{ role: 'model', text: responseText },
-	], { mode: conversationMode });
+	];
+	const updatedAppointmentState = /^Listo\. La cita\b.*quedó registrada correctamente/si.test(responseText)
+		? {}
+		: deriveAppointmentState(updatedHistory, '', appointmentState);
+	await Promise.all([
+		saveConversation(env.CONVERSATIONS, channelId, updatedHistory, { mode: conversationMode }),
+		saveAppointmentState(env.CONVERSATIONS, channelId, updatedAppointmentState),
+	]);
+	await sendWhatsAppMessage(recipient, responseText, env);
 }
 
 async function finishClaimedMessage({ message, env, processMessage }) {

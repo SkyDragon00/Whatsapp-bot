@@ -18,10 +18,8 @@ export async function getBusinessSettings(db, { companyId = null } = {}) {
 }
 
 export async function getBotBusinessSettings(db) {
-	const onboardingCompanyId = await getOnboardingCompanyId(db);
-	if (onboardingCompanyId !== null) {
-		return getBusinessSettings(db, { companyId: onboardingCompanyId });
-	}
+	const platformSettings = await getBusinessSettings(db);
+	if (platformSettings.onboardingEnabled === true) return platformSettings;
 
 	const botCompanyId = await getBotCompanyId(db);
 	if (botCompanyId !== null) {
@@ -33,21 +31,13 @@ export async function getBotBusinessSettings(db) {
 	).all();
 	let onlyCompanyId = null;
 	for (const row of result.results) {
-		try {
-			const match = /^company:(\d+):schedule$/.exec(row.key);
-			if (!match) continue;
-			onlyCompanyId = Number(match[1]);
-			if (JSON.parse(row.value)?.onboardingEnabled === true) {
-				return getBusinessSettings(db, { companyId: onlyCompanyId });
-			}
-		} catch {
-			// Ignora configuraciones heredadas o dañadas y conserva el fallback global.
-		}
+		const match = /^company:(\d+):schedule$/.exec(row.key);
+		if (match) onlyCompanyId = Number(match[1]);
 	}
 	if (result.results.length === 1 && onlyCompanyId !== null) {
 		return getBusinessSettings(db, { companyId: onlyCompanyId });
 	}
-	return getBusinessSettings(db);
+	return platformSettings;
 }
 
 export async function getOnboardingCompanyId(db) {
